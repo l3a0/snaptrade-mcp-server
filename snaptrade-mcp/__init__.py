@@ -1,0 +1,1 @@
+# SnapTrade MCP Server
