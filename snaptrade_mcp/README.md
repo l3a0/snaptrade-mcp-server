@@ -37,15 +37,25 @@ This is the same way any API integration handles credentials. Your keys stay on 
 
 ## Installation
 
-### Option A: Install from PyPI (recommended)
+### Option A: pip (recommended)
 
 ```bash
 pip install snaptrade-mcp
 ```
 
-That's it. This installs the `snaptrade-mcp` command and all dependencies.
+This installs the `snaptrade-mcp` command and all dependencies.
 
-### Option B: Install from source
+### Option B: uvx (no install needed)
+
+If you have [uv](https://docs.astral.sh/uv/) installed, you can run the server directly without installing anything:
+
+```bash
+uvx snaptrade-mcp
+```
+
+This downloads and runs it in an isolated environment automatically.
+
+### Option C: Install from source
 
 ```bash
 git clone https://github.com/micah63/snaptrade-mcp-server.git
