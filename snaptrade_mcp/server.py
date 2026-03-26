@@ -31,6 +31,29 @@ Claude, Cursor). Key policies as of 2025:
   underlying model providers (Anthropic, OpenAI, etc.) so data is not stored or
   used for training. With Privacy Mode OFF, Cursor may collect prompt and tool
   output data (including MCP tool results) for their own model training.
+
+Audit logging gap: This server has zero visibility into what data was accessed,
+when, or by which MCP client. Every tool call silently fetches financial data
+and returns it — no record is kept. A production financial tool should log:
+
+  Access logs: timestamp, which tool was called, which account ID was queried,
+  success/failure, and which MCP client triggered it.
+
+  Data exposure tracking: what categories of data left the server (account
+  numbers, holdings, balances, transaction history). This matters because the
+  data is being piped into an AI model's context window.
+
+  Anomaly detection: rapid-fire calls dumping all accounts + positions +
+  transactions (bulk exfiltration), calls at unusual hours, or unknown MCP
+  clients connecting.
+
+  Credential usage: every time _get_client() or _get_user() are called, so
+  you know when your brokerage credentials were used.
+
+Without this, if credentials leaked or an MCP client misbehaved, there would
+be no way to know what data was exposed or when. This is standard practice for
+anything handling financial data (SOC 2, PCI-DSS) but intentionally absent
+here as this is a demo project.
 """
 
 import json
