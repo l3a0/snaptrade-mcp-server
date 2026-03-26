@@ -13,10 +13,11 @@ import json
 import os
 import webbrowser
 from pathlib import Path
+from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from snaptrade_client import SnapTrade
+from snaptrade_mcp.snaptrade_client import SnapTrade
 
 # ---------------------------------------------------------------------------
 # Server setup
@@ -31,7 +32,7 @@ mcp = FastMCP(
 CONFIG_PATH = Path.home() / ".snaptrade" / "config.json"
 
 
-def _get_client():
+def _get_client() -> tuple[SnapTrade, str]:
     """Initialize SnapTrade client from environment variables."""
     client_id = os.environ.get("SNAPTRADE_CLIENT_ID")
     consumer_key = os.environ.get("SNAPTRADE_CONSUMER_KEY")
@@ -45,7 +46,7 @@ def _get_client():
     return SnapTrade(consumer_key=consumer_key, client_id=client_id), client_id
 
 
-def _get_user():
+def _get_user() -> tuple[str, str]:
     """Load user credentials from local config."""
     if not CONFIG_PATH.exists():
         raise ValueError(
@@ -68,12 +69,12 @@ def _get_user():
     return user_id, user_secret
 
 
-def _serialize(obj):
+def _serialize(obj: Any) -> Any:
     """Convert SDK response objects to clean JSON-serializable dicts."""
     if hasattr(obj, "body"):
         obj = obj.body
     if isinstance(obj, list):
-        return [_serialize(item) for item in obj]
+        return [_serialize(item) for item in obj]  # type: ignore[union-attr]
     if hasattr(obj, "to_dict"):
         return obj.to_dict()
     if hasattr(obj, "__dict__"):
@@ -81,12 +82,12 @@ def _serialize(obj):
     return obj
 
 
-def _format_response(data):
+def _format_response(data: Any) -> str:
     """Return a clean JSON string for the AI to consume."""
     return json.dumps(_serialize(data), indent=2, default=str)
 
 
-def _clean_error(e):
+def _clean_error(e: Exception) -> str:
     """Extract a concise error message from SDK exceptions."""
     msg = str(e)
     # SDK exceptions include full HTTP response — extract just the body
@@ -182,13 +183,14 @@ def snaptrade_get_orders(account_id: str, status: str = "all") -> str:
     client, _ = _get_client()
     user_id, user_secret = _get_user()
 
-    kwargs = dict(
-        account_id=account_id, user_id=user_id, user_secret=user_secret,
-    )
     if status != "all":
-        kwargs["status"] = status
-
-    response = client.account_information.get_user_account_orders(**kwargs)
+        response = client.account_information.get_user_account_orders(
+            account_id=account_id, user_id=user_id, user_secret=user_secret, state=status
+        )
+    else:
+        response = client.account_information.get_user_account_orders(
+            account_id=account_id, user_id=user_id, user_secret=user_secret
+        )
     return _format_response({"account_id": account_id, "status_filter": status, "orders": _serialize(response)})
 
 
@@ -205,7 +207,7 @@ def snaptrade_get_activities(account_id: str) -> str:
     user_id, user_secret = _get_user()
 
     response = client.transactions_and_reporting.get_activities(
-        user_id=user_id, user_secret=user_secret, account_id=account_id,
+        user_id=user_id, user_secret=user_secret, accounts=account_id,
     )
     return _format_response({"account_id": account_id, "activities": _serialize(response)})
 
@@ -232,7 +234,7 @@ def snaptrade_portfolio_summary() -> str:
             "message": "No accounts found. Use snaptrade_setup to connect a brokerage.",
         })
 
-    portfolio = []
+    portfolio: list[dict[str, Any]] = []
     for acct in accounts:
         acct_id = acct.get("id") or acct.get("brokerage_account_id")
         entry = {
@@ -295,7 +297,7 @@ def snaptrade_list_brokerages() -> str:
     response = client.reference_data.list_all_brokerages()
     brokerages = _serialize(response)
 
-    summary = []
+    summary: list[dict[str, Any]] = []
     for b in brokerages:
         summary.append({
             "name": b.get("name", "Unknown"),
@@ -314,10 +316,10 @@ def snaptrade_check_status() -> str:
     Tests the connection, verifies credentials, and confirms whether the user
     has any linked accounts. Use this for diagnostics when something isn't working.
     """
-    result = {"api": "unknown", "credentials": "unknown", "user": "unknown", "accounts": 0}
+    result: dict[str, Any] = {"api": "unknown", "credentials": "unknown", "user": "unknown", "accounts": 0}
 
     try:
-        client, client_id = _get_client()
+        client, _ = _get_client()
         result["credentials"] = "valid"
     except Exception as e:
         result["credentials"] = f"error: {e}"
@@ -353,7 +355,7 @@ def snaptrade_setup() -> str:
     Only needed once per brokerage. After connecting, all other tools will
     have access to the account data.
     """
-    client, client_id = _get_client()
+    client, _ = _get_client()
 
     # Load or create user
     config_dir = CONFIG_PATH.parent
