@@ -7,6 +7,30 @@ other MCP-compatible client.
 
 All tools are read-only. No trading, no account modification, no credential
 exposure. Safe by design.
+
+Security note: Your portfolio data flows through two intermediaries — SnapTrade's
+API servers, then through whatever AI client you connect this MCP server to (e.g.
+Claude, Cursor). Key policies as of 2025:
+
+  SnapTrade: SOC 2 Type II, encrypted at rest/in transit, no stated AI training
+  use. Retention period after disconnecting is not publicly specified — contact
+  them directly if deletion SLA matters for your use case.
+
+  Anthropic API: Training on API data is contractually prohibited. Standard
+  retention is 7 days. Zero Data Retention (ZDR, i.e. no storage at all) is
+  available via enterprise agreement.
+
+  OpenAI API: Training on API data is off by default (opt-in only). Chat
+  completions are not persistently stored, but abuse monitoring logs are kept
+  for up to 30 days. ZDR is available but requires applying to OpenAI Sales
+  and being approved (not self-serve). Note: OpenAI explicitly states that data
+  passing through MCP servers or third-party tool calls falls outside their
+  retention controls — governed by the MCP server host's policy instead.
+
+  Cursor: Enable Privacy Mode in settings — this enforces ZDR with all
+  underlying model providers (Anthropic, OpenAI, etc.) so data is not stored or
+  used for training. With Privacy Mode OFF, Cursor may collect prompt and tool
+  output data (including MCP tool results) for their own model training.
 """
 
 import json
@@ -34,6 +58,17 @@ CONFIG_PATH = Path.home() / ".snaptrade" / "config.json"
 
 def _get_client() -> tuple[SnapTrade, str]:
     """Initialize SnapTrade client from environment variables."""
+    # Note: Do not pass these as inline command-line assignments (e.g.
+    # SNAPTRADE_CLIENT_ID=abc python server.py) — command-line args are visible
+    # to all users on the machine via `ps aux`. Instead, export them from a shell
+    # profile (~/.zshrc) so they are inherited as env vars, which are not shown
+    # in process listings. (Any user with root or the same UID can still read env
+    # vars from /proc/<pid>/environ, but that is a narrower exposure than ps.)
+    #
+    # How to set in ~/.zshrc:
+    #   export SNAPTRADE_CLIENT_ID="your_client_id"
+    #   export SNAPTRADE_CONSUMER_KEY="your_consumer_key"
+    # Then run `source ~/.zshrc` or restart your terminal to apply.
     client_id = os.environ.get("SNAPTRADE_CLIENT_ID")
     consumer_key = os.environ.get("SNAPTRADE_CONSUMER_KEY")
 
@@ -404,6 +439,10 @@ def snaptrade_setup() -> str:
         # This is critical because config.json contains user_secret — a credential
         # that grants access to your brokerage data. Without chmod 600, any user or
         # process on the machine could read it and access your accounts.
+        #
+        # Note: Your brokerage credentials (user_id + user_secret) are stored in
+        # plaintext JSON at ~/.snaptrade/config.json — chmod 600 helps but isn't
+        # encryption. Anyone with root access or a copy of the file can still read them.
         CONFIG_PATH.chmod(0o600)
 
     # Generate connection portal URL
