@@ -93,6 +93,118 @@
     color: var(--muted);
   }
   .legend strong { color: var(--text); }
+
+  .toc-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+  }
+  .toc-table th {
+    text-align: left;
+    padding: 0.6rem 1rem;
+    border-bottom: 2px solid var(--border);
+    color: var(--text);
+    font-weight: 600;
+  }
+  .toc-table td {
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .toc-table td:first-child {
+    color: var(--text);
+    font-weight: 500;
+    width: 2.5rem;
+  }
+  .toc-table td:last-child {
+    width: 5rem;
+    text-align: center;
+    color: var(--purple);
+    font-size: 0.85rem;
+  }
+  .toc-table a {
+    color: var(--text);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+  .toc-table a:hover { color: var(--accent); }
+  .toc-table code {
+    background: var(--bg);
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    color: #f85149;
+  }
+  .toc-table tr:hover td { background: rgba(88, 166, 255, 0.05); }
+
+  /* Lesson Plan styles */
+  .lesson-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1rem;
+  }
+  .lesson-card h3 {
+    font-size: 1.1rem;
+    color: var(--accent);
+    margin-bottom: 0.25rem;
+  }
+  .lesson-card .goal {
+    color: var(--green);
+    font-size: 0.9rem;
+    margin-bottom: 0.75rem;
+    font-style: italic;
+  }
+  .lesson-card h4 {
+    font-size: 0.85rem;
+    color: var(--text);
+    margin: 0.75rem 0 0.35rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .lesson-card ul {
+    list-style: none;
+    padding: 0;
+  }
+  .lesson-card li {
+    color: var(--muted);
+    font-size: 0.9rem;
+    padding: 0.2rem 0;
+    padding-left: 1.2rem;
+    position: relative;
+  }
+  .lesson-card li::before {
+    content: "→";
+    position: absolute;
+    left: 0;
+    color: var(--border);
+  }
+  .lesson-card code {
+    background: var(--bg);
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    color: #f85149;
+  }
+  .lesson-card .exercise {
+    margin-top: 0.75rem;
+    padding: 0.6rem 1rem;
+    background: rgba(63, 185, 80, 0.08);
+    border-left: 3px solid var(--green);
+    border-radius: 0 6px 6px 0;
+    font-size: 0.85rem;
+    color: var(--green);
+  }
+  .lesson-card .diagram-links {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+  }
+  .lesson-card .diagram-links a {
+    color: var(--purple);
+    text-decoration: none;
+    margin-right: 0.75rem;
+  }
+  .lesson-card .diagram-links a:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -103,6 +215,8 @@
 </header>
 
 <nav>
+  <a href="#toc">TOC</a>
+  <a href="#lessons">Lessons</a>
   <a href="#arch">Architecture</a>
   <a href="#components">Components</a>
   <a href="#class">Class / Module</a>
@@ -118,6 +232,174 @@
 </nav>
 
 <div class="container">
+
+<!-- TABLE OF CONTENTS -->
+<section id="toc">
+  <h2>Table of Contents</h2>
+  <p>12 diagrams mapped to the 7-lesson plan.</p>
+  <table class="toc-table">
+    <thead>
+      <tr><th>#</th><th>Diagram</th><th>Lesson</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>1</td><td><a href="#arch">High-Level Architecture</a> — clients, server, API, storage</td><td>1 &amp; 2</td></tr>
+      <tr><td>2</td><td><a href="#components">Component Diagram</a> — internal structure of server.py</td><td>2</td></tr>
+      <tr><td>3</td><td><a href="#class">Class/Module UML</a> — FastMCP, SnapTrade SDK, ConfigFile types</td><td>2 &amp; 4</td></tr>
+      <tr><td>4</td><td><a href="#dataflow">Data Flow</a> — request → SDK → serialize → JSON response</td><td>4 &amp; 5</td></tr>
+      <tr><td>5</td><td><a href="#seq-tool">Sequence: Tool Call</a> — generic read tool lifecycle</td><td>4</td></tr>
+      <tr><td>6</td><td><a href="#seq-setup">Sequence: Setup</a> — first-time registration &amp; brokerage auth</td><td>3</td></tr>
+      <tr><td>7</td><td><a href="#seq-portfolio">Sequence: Portfolio Summary</a> — multi-account aggregation with error handling</td><td>4</td></tr>
+      <tr><td>8</td><td><a href="#auth">Auth Layer Diagram</a> — two-layer security model</td><td>3</td></tr>
+      <tr><td>9</td><td><a href="#serialize">Serialization Pipeline</a> — <code>_serialize()</code> decision tree</td><td>5</td></tr>
+      <tr><td>10</td><td><a href="#error">Error Handling Flow</a> — <code>_clean_error()</code> extraction logic</td><td>5</td></tr>
+      <tr><td>11</td><td><a href="#tools-map">Tool Dependency Map</a> — which tools to call first, what depends on what</td><td>4</td></tr>
+      <tr><td>12</td><td><a href="#state">State Diagram</a> — server lifecycle from unconfigured → ready → serving</td><td>7</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- LESSON PLAN -->
+<section id="lessons">
+  <h2>Lesson Plan</h2>
+  <p>A Python MCP server providing read-only access to brokerage data via the SnapTrade API. ~500 lines total — 7 lessons to full understanding.</p>
+
+  <div class="lesson-card">
+    <h3>Lesson 1: Project Structure &amp; Setup</h3>
+    <div class="goal">Understand how the project is organized and how to install it.</div>
+    <h4>Files to read</h4>
+    <ul>
+      <li><code>pyproject.toml</code> — dependencies, entry points, build config</li>
+      <li><code>snaptrade_mcp/__init__.py</code> — version metadata</li>
+      <li><code>snaptrade_mcp/__main__.py</code> — module entry point</li>
+    </ul>
+    <h4>Key concepts</h4>
+    <ul>
+      <li>Python packaging with hatchling</li>
+      <li>Two dependencies: <code>mcp[cli]</code> (MCP framework) and <code>snaptrade-python-sdk</code> (API client)</li>
+      <li>Two entry points: <code>snaptrade-mcp</code> CLI command and <code>python -m snaptrade_mcp</code></li>
+      <li>Requires Python 3.10+</li>
+    </ul>
+    <div class="exercise">Exercise: Install the project with <code>pip install -e .</code> (editable mode)</div>
+    <div class="diagram-links">Diagrams: <a href="#arch">1. Architecture</a></div>
+  </div>
+
+  <div class="lesson-card">
+    <h3>Lesson 2: MCP Server Basics</h3>
+    <div class="goal">Understand how FastMCP works and how the server is initialized.</div>
+    <h4>File</h4>
+    <ul>
+      <li><code>snaptrade_mcp/server.py</code> (lines 1–30)</li>
+    </ul>
+    <h4>Key concepts</h4>
+    <ul>
+      <li><code>FastMCP</code> — simplified MCP server class</li>
+      <li>STDIO transport — server communicates via stdin/stdout (not HTTP)</li>
+      <li><code>@mcp.tool()</code> — decorator to register tools that AI agents can call</li>
+      <li><code>@mcp.resource()</code> — decorator to expose static data endpoints</li>
+      <li><code>@mcp.prompt()</code> — decorator for prompt templates</li>
+      <li><code>main()</code> calls <code>mcp.run()</code> to start the server</li>
+    </ul>
+    <div class="diagram-links">Diagrams: <a href="#arch">1. Architecture</a> <a href="#components">2. Components</a> <a href="#class">3. Class/Module</a></div>
+  </div>
+
+  <div class="lesson-card">
+    <h3>Lesson 3: Authentication &amp; Configuration</h3>
+    <div class="goal">Understand the two-layer auth model.</div>
+    <h4>File</h4>
+    <ul>
+      <li><code>snaptrade_mcp/server.py</code> — <code>_get_client()</code> and <code>_get_user()</code> functions</li>
+    </ul>
+    <h4>Key concepts</h4>
+    <ul>
+      <li><strong>Layer 1 — Developer credentials</strong> (env vars): <code>SNAPTRADE_CLIENT_ID</code> + <code>SNAPTRADE_CONSUMER_KEY</code></li>
+      <li><strong>Layer 2 — User credentials</strong> (local file): <code>~/.snaptrade/config.json</code> with <code>user_id</code> + <code>user_secret</code></li>
+      <li><code>_get_client()</code> reads env vars and creates a <code>SnapTrade</code> SDK instance</li>
+      <li><code>_get_user()</code> reads the local config file</li>
+      <li><code>snaptrade_setup()</code> tool creates user credentials on first run and generates a brokerage auth URL</li>
+      <li>Security: config file created with <code>chmod 600</code>, credentials never exposed in tool responses</li>
+    </ul>
+    <div class="diagram-links">Diagrams: <a href="#seq-setup">6. Setup Sequence</a> <a href="#auth">8. Auth Layers</a></div>
+  </div>
+
+  <div class="lesson-card">
+    <h3>Lesson 4: Tools — The Core Functionality</h3>
+    <div class="goal">Understand how MCP tools work and what this server exposes.</div>
+    <h4>File</h4>
+    <ul>
+      <li><code>snaptrade_mcp/server.py</code> — all <code>@mcp.tool()</code> functions</li>
+    </ul>
+    <h4>10 tools (recommended study order)</h4>
+    <ul>
+      <li><code>snaptrade_check_status()</code> — health check, good starting point</li>
+      <li><code>snaptrade_setup()</code> — creates user config, generates auth URL</li>
+      <li><code>snaptrade_list_accounts()</code> — lists connected brokerage accounts</li>
+      <li><code>snaptrade_get_balance(account_id)</code> — cash balances per account</li>
+      <li><code>snaptrade_get_positions(account_id)</code> — stock/ETF holdings</li>
+      <li><code>snaptrade_get_orders(account_id, status)</code> — order history with filtering</li>
+      <li><code>snaptrade_get_activities(account_id)</code> — transaction log</li>
+      <li><code>snaptrade_portfolio_summary()</code> — aggregates all accounts (most complex)</li>
+      <li><code>snaptrade_search_symbols(query)</code> — search stocks/ETFs</li>
+      <li><code>snaptrade_list_brokerages()</code> — supported brokerages</li>
+    </ul>
+    <h4>Pattern</h4>
+    <ul>
+      <li>Every tool: get client → get user → call SDK → serialize response → return JSON string</li>
+    </ul>
+    <div class="diagram-links">Diagrams: <a href="#class">3. Class/Module</a> <a href="#dataflow">4. Data Flow</a> <a href="#seq-tool">5. Tool Call Sequence</a> <a href="#seq-portfolio">7. Portfolio Summary</a> <a href="#tools-map">11. Tool Dependency Map</a></div>
+  </div>
+
+  <div class="lesson-card">
+    <h3>Lesson 5: Data Serialization &amp; Error Handling</h3>
+    <div class="goal">Understand how SDK responses are converted to MCP-friendly output.</div>
+    <h4>File</h4>
+    <ul>
+      <li><code>snaptrade_mcp/server.py</code> — <code>_serialize()</code>, <code>_format_response()</code>, <code>_clean_error()</code></li>
+    </ul>
+    <h4>Key concepts</h4>
+    <ul>
+      <li>SDK returns complex objects — <code>_serialize()</code> recursively converts them to dicts</li>
+      <li>Handles objects with <code>.body</code> or <code>.to_dict()</code> methods</li>
+      <li><code>_format_response()</code> wraps serialization + JSON formatting</li>
+      <li><code>_clean_error()</code> extracts concise messages from verbose SDK exceptions</li>
+      <li><code>portfolio_summary</code> gracefully continues if individual account calls fail</li>
+    </ul>
+    <div class="diagram-links">Diagrams: <a href="#dataflow">4. Data Flow</a> <a href="#serialize">9. Serialization Pipeline</a> <a href="#error">10. Error Handling</a></div>
+  </div>
+
+  <div class="lesson-card">
+    <h3>Lesson 6: Resources &amp; Prompts</h3>
+    <div class="goal">Understand the non-tool MCP features.</div>
+    <h4>File</h4>
+    <ul>
+      <li><code>snaptrade_mcp/server.py</code> — <code>@mcp.resource()</code> and <code>@mcp.prompt()</code> sections</li>
+    </ul>
+    <h4>Resources (2)</h4>
+    <ul>
+      <li><code>snaptrade://status</code> — exposes health check as a resource</li>
+      <li><code>snaptrade://brokerages</code> — exposes brokerage list as a resource</li>
+    </ul>
+    <h4>Prompts (2)</h4>
+    <ul>
+      <li><code>analyze_portfolio()</code> — instructs AI to do portfolio analysis (allocation, concentration risk, diversification)</li>
+      <li><code>account_summary()</code> — instructs AI to create a concise account table</li>
+    </ul>
+    <div class="diagram-links">Diagrams: <a href="#components">2. Components</a></div>
+  </div>
+
+  <div class="lesson-card">
+    <h3>Lesson 7: Running &amp; Testing</h3>
+    <div class="goal">Run the server and test it end-to-end.</div>
+    <h4>Steps</h4>
+    <ul>
+      <li>Get SnapTrade API credentials from <code>https://snaptrade.com</code></li>
+      <li>Set env vars: <code>export SNAPTRADE_CLIENT_ID=... SNAPTRADE_CONSUMER_KEY=...</code></li>
+      <li>Run: <code>python -m snaptrade_mcp</code> (starts STDIO server)</li>
+      <li>Or add to Claude Code: <code>claude mcp add snaptrade -s user -e SNAPTRADE_CLIENT_ID=... -e SNAPTRADE_CONSUMER_KEY=... -- snaptrade-mcp</code></li>
+      <li>Test by asking Claude to call <code>snaptrade_check_status</code></li>
+    </ul>
+    <div class="diagram-links">Diagrams: <a href="#state">12. State Diagram</a></div>
+  </div>
+</section>
 
 <!-- 1. HIGH-LEVEL ARCHITECTURE -->
 <section id="arch">

@@ -384,6 +384,26 @@ def snaptrade_setup() -> str:
         config = {"user_id": user_id, "user_secret": user_secret}
         with open(CONFIG_PATH, "w") as f:
             json.dump(config, f, indent=2)
+
+        # chmod 600: Restrict access to config.json to owner only
+        # chmod = change mode (change file permissions). The three digits represent:
+        #
+        # 6   0   0
+        # │   │   └── Others (everyone else):   0 = nothing
+        # │   └────── Group (your user group):  0 = nothing
+        # └────────── Owner (you):              6 = read + write
+        #
+        # Each digit is a sum of:
+        #   4 = read
+        #   2 = write
+        #   1 = execute
+        # So 600 means:
+        #   Owner can read and write (4+2=6)
+        #   Everyone else gets nothing (0, 0)
+        #
+        # This is critical because config.json contains user_secret — a credential
+        # that grants access to your brokerage data. Without chmod 600, any user or
+        # process on the machine could read it and access your accounts.
         CONFIG_PATH.chmod(0o600)
 
     # Generate connection portal URL
@@ -410,6 +430,11 @@ def snaptrade_setup() -> str:
 # ---------------------------------------------------------------------------
 # Resources
 # ---------------------------------------------------------------------------
+# NOTE: Resources represent static, cacheable data addressable by URI.
+# snaptrade_check_status and snaptrade_list_brokerages are NOT good resources
+# because their data can change (API status, supported brokerages). They are
+# already exposed as tools above, which is the correct primitive for dynamic
+# data. Resources are best for things like user documentation or fixed configs.
 
 
 @mcp.resource("snaptrade://status")
