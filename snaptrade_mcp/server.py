@@ -443,6 +443,29 @@ def snaptrade_setup() -> str:
         # Note: Your brokerage credentials (user_id + user_secret) are stored in
         # plaintext JSON at ~/.snaptrade/config.json — chmod 600 helps but isn't
         # encryption. Anyone with root access or a copy of the file can still read them.
+        #
+        # Alternatives for stronger secret storage:
+        #
+        #   OS keychain (best local security): Each OS has a native encrypted secret
+        #   store (macOS Keychain, Windows Credential Manager, Linux libsecret). The
+        #   `keyring` Python library provides a single cross-platform API for all three.
+        #   Secrets are encrypted by the OS and never written to disk as plaintext.
+        #   Requires: pip install keyring
+        #
+        #   Secret managers (best for server/cloud): HashiCorp Vault, AWS Secrets
+        #   Manager, GCP Secret Manager. Secrets live externally, access is audited,
+        #   rotation is automatic. Appropriate if this runs in a cloud environment.
+        #
+        #   ~/.netrc (no deps, but not meaningfully better): A stdlib-readable plaintext
+        #   credential file (`netrc.netrc().authenticators("api.snaptrade.com")`).
+        #   Same threat model as config.json — still plaintext, still needs chmod 600.
+        #   The only advantage is convention: curl, git, and wget already know the format.
+        #
+        #   Encrypted .env (middle ground): Tools like `sops` encrypt the file at rest
+        #   using age or KMS keys. Better than plaintext, but the decryption key still
+        #   has to live somewhere — you've just moved the problem.
+        #
+        # For local dev on Mac/Windows/Linux, `keyring` is the practical upgrade path.
         CONFIG_PATH.chmod(0o600)
 
     # Generate connection portal URL
