@@ -29,6 +29,9 @@ dependencies = [
     "snaptrade-python-sdk>=11.0.0",
 ]
 
+[project.optional-dependencies]
+dev = ["ruff", "pyright"]
+
 [project.scripts]
 snaptrade-mcp = "snaptrade_mcp.server:main"
 
