@@ -1,5 +1,7 @@
 # SnapTrade MCP Server
 
+[![CI](https://github.com/l3a0/snaptrade-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/l3a0/snaptrade-mcp-server/actions/workflows/ci.yml)
+
 A read-only MCP (Model Context Protocol) server that connects AI agents to brokerage data via SnapTrade. Works with Claude Code, Claude Desktop, Cursor, Windsurf, and any MCP-compatible client.
 
 **10 tools. Read-only. No trading. Safe by design.**
