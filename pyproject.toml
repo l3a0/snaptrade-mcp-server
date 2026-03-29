@@ -30,10 +30,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["ruff", "pyright"]
+dev = ["ruff", "pyright", "pytest", "pytest-dotenv", "pytest-cov"]
 
 [project.scripts]
 snaptrade-mcp = "snaptrade_mcp.server:main"
+
+[tool.pytest.ini_options]
+addopts = "--envfile=tests/integration/.env"
 
 [project.urls]
 Homepage = "https://github.com/micah63/snaptrade-mcp-server"

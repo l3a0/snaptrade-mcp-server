@@ -1,5 +1,8 @@
 name: CI
 
+# Triggers:
+#   pull_request — runs on every PR opened, updated, or reopened (any branch)
+#   push to main — runs after a merge to catch any issues on the main branch
 on:
   pull_request:
   push:
@@ -7,25 +10,62 @@ on:
 
 jobs:
   check:
+    # GitHub spins up a fresh Ubuntu VM for each run. The VM is discarded after.
     runs-on: ubuntu-latest
+
     steps:
+      # Clone the repo into the VM. Without this, the VM has no code.
+      # @v4 pins to the latest 4.x release — not a specific patch, not @main.
+      # Dependabot will open a PR when v5 is released.
       - uses: actions/checkout@v4
 
+      # Install Python 3.13 on the VM. Pins the version to match local dev.
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
 
+      # Install the package in editable mode plus dev extras (ruff, pyright,
+      # pytest, pytest-dotenv, pytest-cov). Editable mode (-e) means the
+      # installed package points back to the source directory — no reinstall
+      # needed if files change mid-run.
       - name: Install dependencies
         run: pip install -e ".[dev]"
 
+      # Lint with ruff — catches style issues, unused imports, and common bugs.
+      # Exits non-zero on any violation, which fails the job.
       - name: Lint
         run: ruff check .
 
+      # Static type checking with pyright. Only checks the package source,
+      # not .venv or test files.
       - name: Type check
         run: pyright snaptrade_mcp/
 
+      # Verify the package can be built into a wheel and sdist (as it would be
+      # for PyPI). Catches broken pyproject.toml or missing files in the manifest.
       - name: Build check
         run: pip install build && python -m build
 
+      # Minimal runtime check — just imports the package. Catches broken imports
+      # or any module-level code that crashes on load.
       - name: Import smoke test
         run: python -c "import snaptrade_mcp"
+
+      # Integration tests — hit the real SnapTrade API with a paper trading account.
+      # Credentials are stored as GitHub Actions Secrets (repo Settings → Secrets →
+      # Actions) and injected as env vars. They are never printed in logs.
+      #
+      # Security note: GitHub does not pass secrets to workflows triggered by PRs
+      # from forks, preventing credential theft via malicious PRs. For PRs from
+      # the same repo, secrets are available and these tests will run.
+      #
+      # The test fixture (require_credentials in test_api.py) bootstraps
+      # ~/.snaptrade/config.json from SNAPTRADE_USER_ID and SNAPTRADE_USER_SECRET
+      # if the file doesn't exist — so CI runners work without a prior setup step.
+      - name: Integration tests
+        env:
+          SNAPTRADE_CLIENT_ID: ${{ secrets.SNAPTRADE_CLIENT_ID }}
+          SNAPTRADE_CONSUMER_KEY: ${{ secrets.SNAPTRADE_CONSUMER_KEY }}
+          SNAPTRADE_USER_ID: ${{ secrets.SNAPTRADE_USER_ID }}
+          SNAPTRADE_USER_SECRET: ${{ secrets.SNAPTRADE_USER_SECRET }}
+        run: pytest tests/integration/ -v

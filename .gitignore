@@ -2,6 +2,9 @@
 __pycache__/
 *.pyc
 .env
+tests/integration/.env
 .cursor/mcp.json
 dist/
 *.egg-info/
+.coverage
+htmlcov/
