@@ -30,12 +30,22 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Install dev extras with: pip install -e ".[dev]"
+# This is used both locally and in CI (see .github/workflows/ci.yml).
 dev = ["ruff", "pyright", "pytest", "pytest-dotenv", "pytest-cov"]
 
 [project.scripts]
 snaptrade-mcp = "snaptrade_mcp.server:main"
 
 [tool.pytest.ini_options]
+# --envfile loads tests/integration/.env automatically via pytest-dotenv.
+# pytest-dotenv uses dotenv_path (a real file path), not find_dotenv (which
+# searches up the directory tree by filename only — it would not find a file
+# at a subdirectory path like tests/integration/.env).
+#
+# The .env file is gitignored. To run integration tests:
+#   - Locally: fill in tests/integration/.env from ~/.snaptrade/config.json
+#   - CI: set GitHub Actions Secrets — the fixture bootstraps config.json from them
 addopts = "--envfile=tests/integration/.env"
 
 [project.urls]
