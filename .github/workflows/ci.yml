@@ -1,4 +1,6 @@
 name: CI
+permissions:
+  contents: read
 
 # Triggers:
 #   pull_request — runs on every PR opened, updated, or reopened (any branch)
