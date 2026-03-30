@@ -9,7 +9,7 @@ A read-only MCP (Model Context Protocol) server that connects AI agents to broke
 ## What You Can Do
 
 | Tool | Description |
-|------|-------------|
+| ---- | ----------- |
 | `snaptrade_list_accounts` | List all connected brokerage accounts |
 | `snaptrade_get_balance` | Cash balances for an account |
 | `snaptrade_get_positions` | Current holdings (stocks, ETFs) |
@@ -129,6 +129,35 @@ Add to `.cursor/mcp.json` in your project root. **Add `.cursor/mcp.json` to your
 }
 ```
 
+### ChatGPT (via streamable-http)
+
+ChatGPT requires an HTTP-based MCP transport. The `SNAPTRADE_MCP_TOKEN` environment variable is **required** for HTTP transports — the server will refuse to start without it.
+
+```bash
+export SNAPTRADE_MCP_TOKEN="your-secret-token"
+snaptrade-mcp --transport streamable-http
+```
+
+This starts a local HTTP server at `http://127.0.0.1:8000/mcp` with Bearer token authentication. Clients must send `Authorization: Bearer your-secret-token` with every request.
+
+To expose it to ChatGPT, use a tunnel like [ngrok](https://ngrok.com/):
+
+```bash
+ngrok http 8000
+```
+
+Then in ChatGPT (requires Pro, Team, Enterprise, or Edu with Developer Mode enabled):
+
+1. Go to **Settings → Developer Mode**
+2. Add the ngrok URL as an MCP app (e.g. `https://abc123.ngrok.app/mcp`)
+3. Configure the Bearer token when adding the app
+
+To customize the host or port:
+
+```bash
+snaptrade-mcp --transport streamable-http --host 0.0.0.0 --port 3000
+```
+
 ## First-Time Setup
 
 After installing, ask your AI agent:
@@ -149,14 +178,17 @@ This calls `snaptrade_setup`, which opens a browser window where you authorize y
 
 ## Troubleshooting
 
-**Server fails to connect / "Failed to reconnect"**
+### Server fails to connect / "Failed to reconnect"
+
 - Verify the package is installed: `python -c "from snaptrade_mcp.server import main; print('OK')"`
 - If using a virtual environment, make sure `snaptrade-mcp` is installed in that environment.
 
-**"Missing credentials" error**
+### "Missing credentials" error
+
 - Check that `SNAPTRADE_CLIENT_ID` and `SNAPTRADE_CONSUMER_KEY` are set in the `-e` flags (Claude Code) or `env` block (Claude Desktop / Cursor).
 
-**"No config found" error**
+### "No config found" error
+
 - Run `snaptrade_setup` through the MCP server first to connect a brokerage and create `~/.snaptrade/config.json`.
 
 ## Security
@@ -167,13 +199,16 @@ This calls `snaptrade_setup`, which opens a browser window where you authorize y
 
 ## Architecture
 
-```
+```text
 snaptrade_mcp/
   server.py         # All 10 tools, 2 resources, 2 prompt templates
   __init__.py       # Package marker + version
   __main__.py       # Entry point (python -m snaptrade_mcp)
-  requirements.txt  # Dependencies
-  README.md         # This file
 ```
 
-The server runs over STDIO (the default MCP transport). Each tool function calls the SnapTrade Python SDK, flattens the response into clean JSON, and returns it to the AI agent.
+The server supports two transport modes:
+
+- **STDIO** (default) — for local MCP clients (Claude Code, Claude Desktop, Cursor)
+- **Streamable HTTP** (`--transport streamable-http`) — for remote clients (ChatGPT). Requires `SNAPTRADE_MCP_TOKEN` for Bearer token authentication.
+
+Each tool function calls the SnapTrade Python SDK, flattens the response into clean JSON, and returns it to the AI client.

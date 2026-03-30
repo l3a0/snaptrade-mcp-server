@@ -62,7 +62,10 @@ import webbrowser
 from pathlib import Path
 from typing import Any
 
+from mcp.server.auth.provider import AccessToken, TokenVerifier
+from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
+from pydantic import AnyHttpUrl
 
 from snaptrade_mcp.snaptrade_client import SnapTrade
 
@@ -70,10 +73,34 @@ from snaptrade_mcp.snaptrade_client import SnapTrade
 # Server setup
 # ---------------------------------------------------------------------------
 
+_MCP_TOKEN = os.environ.get("SNAPTRADE_MCP_TOKEN")
+
+
+class _StaticTokenVerifier(TokenVerifier):
+    """Validates Bearer tokens against a static secret from SNAPTRADE_MCP_TOKEN."""
+
+    async def verify_token(self, token: str) -> AccessToken | None:
+        if token == _MCP_TOKEN:
+            return AccessToken(
+                token=token,
+                client_id="snaptrade-user",
+                scopes=["read"],
+                expires_at=None,
+            )
+        return None
+
+
 mcp = FastMCP(
     "snaptrade",
     instructions="Read-only access to brokerage accounts via SnapTrade. "
     "View balances, positions, orders, and transactions across any connected brokerage.",
+    auth=AuthSettings(
+        issuer_url=AnyHttpUrl("http://localhost:8000"),
+        resource_server_url=AnyHttpUrl("http://localhost:8000/mcp"),
+    )
+    if _MCP_TOKEN
+    else None,
+    token_verifier=_StaticTokenVerifier() if _MCP_TOKEN else None,
 )
 
 CONFIG_PATH = Path.home() / ".snaptrade" / "config.json"
@@ -570,7 +597,41 @@ def account_summary() -> str:
 
 def main():
     """Entry point for the snaptrade-mcp console script."""
-    mcp.run()
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="snaptrade-mcp",
+        description="SnapTrade MCP Server — read-only brokerage data for AI agents.",
+    )
+    parser.add_argument(
+        "--transport",
+        choices=["stdio", "sse", "streamable-http"],
+        default="stdio",
+        help="Transport protocol (default: stdio)",
+    )
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Host to bind to for HTTP transports (default: 127.0.0.1)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Port to bind to for HTTP transports (default: 8000)",
+    )
+
+    args = parser.parse_args()
+
+    if args.transport in ("sse", "streamable-http") and not _MCP_TOKEN:
+        parser.error(
+            "SNAPTRADE_MCP_TOKEN environment variable is required for HTTP transports. "
+            "Set it to a secret value that clients must send as a Bearer token."
+        )
+
+    mcp.settings.host = args.host
+    mcp.settings.port = args.port
+    mcp.run(transport=args.transport)
 
 
 if __name__ == "__main__":
