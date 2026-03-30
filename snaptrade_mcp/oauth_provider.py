@@ -25,6 +25,7 @@ from mcp.server.auth.provider import (
 )
 from mcp.server.auth.provider import AccessToken as ServerAccessToken
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
+from pydantic import AnyUrl
 
 
 class SimpleOAuthProvider(OAuthAuthorizationServerProvider[AuthorizationCode, RefreshToken, ServerAccessToken]):
@@ -34,6 +35,7 @@ class SimpleOAuthProvider(OAuthAuthorizationServerProvider[AuthorizationCode, Re
         provider = SimpleOAuthProvider(
             client_id=os.environ["SNAPTRADE_OAUTH_CLIENT_ID"],
             client_secret=os.environ["SNAPTRADE_OAUTH_CLIENT_SECRET"],
+            redirect_uri=os.environ["SNAPTRADE_OAUTH_REDIRECT_URI"],
         )
 
     Pass this to FastMCP via the auth_server_provider parameter. FastMCP will
@@ -41,14 +43,14 @@ class SimpleOAuthProvider(OAuthAuthorizationServerProvider[AuthorizationCode, Re
     /.well-known/oauth-authorization-server endpoints backed by this provider.
     """
 
-    def __init__(self, client_id: str, client_secret: str) -> None:
+    def __init__(self, client_id: str, client_secret: str, redirect_uri: str) -> None:
         self._client = OAuthClientInformationFull(
             client_id=client_id,
             client_secret=client_secret,
-            redirect_uris=None,  # accept any redirect_uri (validated per-request by AuthorizationHandler)
+            redirect_uris=[AnyUrl(redirect_uri)],
             grant_types=["authorization_code", "refresh_token"],
             response_types=["code"],
-            token_endpoint_auth_method="client_secret_basic",
+            token_endpoint_auth_method="client_secret_post",
         )
         self._auth_codes: dict[str, AuthorizationCode] = {}
         self._access_tokens: dict[str, ServerAccessToken] = {}

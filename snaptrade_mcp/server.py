@@ -64,6 +64,7 @@ from typing import Any
 
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import AnyHttpUrl
 
 from snaptrade_mcp.oauth_provider import SimpleOAuthProvider
@@ -75,10 +76,24 @@ from snaptrade_mcp.snaptrade_client import SnapTrade
 
 _OAUTH_CLIENT_ID = os.environ.get("SNAPTRADE_OAUTH_CLIENT_ID")
 _OAUTH_CLIENT_SECRET = os.environ.get("SNAPTRADE_OAUTH_CLIENT_SECRET")
+_OAUTH_REDIRECT_URI = os.environ.get("SNAPTRADE_OAUTH_REDIRECT_URI")
+_PUBLIC_URL = os.environ.get("SNAPTRADE_PUBLIC_URL", "http://localhost:8000").rstrip("/")
 
 _oauth_provider = (
-    SimpleOAuthProvider(_OAUTH_CLIENT_ID, _OAUTH_CLIENT_SECRET)
-    if _OAUTH_CLIENT_ID and _OAUTH_CLIENT_SECRET
+    SimpleOAuthProvider(_OAUTH_CLIENT_ID, _OAUTH_CLIENT_SECRET, _OAUTH_REDIRECT_URI)
+    if _OAUTH_CLIENT_ID and _OAUTH_CLIENT_SECRET and _OAUTH_REDIRECT_URI
+    else None
+)
+
+# When a public URL is set (e.g. ngrok), add its host to the DNS rebinding allowlist
+# so the MCP SDK's host-header validation doesn't reject proxied requests.
+_public_host = AnyHttpUrl(_PUBLIC_URL).host if _oauth_provider else None
+_transport_security = (
+    TransportSecuritySettings(
+        allowed_hosts=["127.0.0.1:*", "localhost:*", _public_host],
+        allowed_origins=[_PUBLIC_URL, "http://127.0.0.1:*", "http://localhost:*"],
+    )
+    if _public_host and _public_host not in ("127.0.0.1", "localhost")
     else None
 )
 
@@ -87,12 +102,13 @@ mcp = FastMCP(
     instructions="Read-only access to brokerage accounts via SnapTrade. "
     "View balances, positions, orders, and transactions across any connected brokerage.",
     auth=AuthSettings(
-        issuer_url=AnyHttpUrl("http://localhost:8000"),
-        resource_server_url=AnyHttpUrl("http://localhost:8000/mcp"),
+        issuer_url=AnyHttpUrl(_PUBLIC_URL),
+        resource_server_url=AnyHttpUrl(f"{_PUBLIC_URL}/mcp"),
     )
     if _oauth_provider
     else None,
     auth_server_provider=_oauth_provider,
+    transport_security=_transport_security,
 )
 
 CONFIG_PATH = Path.home() / ".snaptrade" / "config.json"
@@ -617,8 +633,10 @@ def main():
 
     if args.transport in ("sse", "streamable-http") and not _oauth_provider:
         parser.error(
-            "SNAPTRADE_OAUTH_CLIENT_ID and SNAPTRADE_OAUTH_CLIENT_SECRET environment "
-            "variables are required for HTTP transports."
+            "SNAPTRADE_OAUTH_CLIENT_ID, SNAPTRADE_OAUTH_CLIENT_SECRET, and "
+            "SNAPTRADE_OAUTH_REDIRECT_URI environment variables are required for HTTP "
+            "transports. Also set SNAPTRADE_PUBLIC_URL to the public-facing base URL "
+            "(e.g. your ngrok URL) if clients connect from outside localhost."
         )
 
     mcp.settings.host = args.host

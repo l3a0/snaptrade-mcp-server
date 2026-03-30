@@ -12,14 +12,23 @@ positions, orders, and transactions — but cannot trade or modify accounts.
 
 ## Credential architecture
 
-Two separate layers of credentials:
+Three separate layers of credentials:
 
 1. **App credentials** (SNAPTRADE_CLIENT_ID, SNAPTRADE_CONSUMER_KEY) — set as env
-   vars in ~/.zshrc. Identify the MCP server application to SnapTrade.
+   vars (via `.env` file or shell profile). Identify the MCP server application to SnapTrade.
 
 2. **User credentials** (user_id, user_secret) — stored in ~/.snaptrade/config.json
    after running snaptrade_setup. Identify the specific brokerage user. The file is
    chmod 600 (owner read/write only).
+
+3. **HTTP transport OAuth credentials** — required only when running with
+   `--transport streamable-http` (e.g. for ChatGPT):
+   - `SNAPTRADE_OAUTH_CLIENT_ID` / `SNAPTRADE_OAUTH_CLIENT_SECRET` — credentials you
+     choose; they identify the OAuth client (ChatGPT) to this server.
+   - `SNAPTRADE_OAUTH_REDIRECT_URI` — the callback URL provided by your OAuth client
+     at registration time (e.g. `https://chatgpt.com/connector/oauth/xxxx`). Required.
+   - `SNAPTRADE_PUBLIC_URL` — the public-facing base URL (e.g. your ngrok URL) so
+     OAuth discovery metadata advertises reachable endpoints.
 
 `_get_client()` reads app credentials from env vars.
 `_get_user()` reads user credentials from ~/.snaptrade/config.json only — it does
@@ -65,4 +74,11 @@ credential theft via malicious PRs.
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
+```
+
+Copy `.env` (gitignored) and fill in credentials before running the server:
+
+```bash
+set -a && source .env && set +a  # export all vars from .env to child processes
+snaptrade-mcp --transport streamable-http
 ```

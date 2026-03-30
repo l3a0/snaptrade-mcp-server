@@ -131,30 +131,44 @@ Add to `.cursor/mcp.json` in your project root. **Add `.cursor/mcp.json` to your
 
 ### ChatGPT (via streamable-http)
 
-ChatGPT requires an HTTP-based MCP transport with OAuth 2.0. Set your OAuth credentials and start the server:
+ChatGPT requires an HTTP-based MCP transport with OAuth 2.0.
 
-```bash
-export SNAPTRADE_OAUTH_CLIENT_ID="snaptrade-mcp"
-export SNAPTRADE_OAUTH_CLIENT_SECRET="your-secret"
-snaptrade-mcp --transport streamable-http
-```
-
-Both environment variables are required — the server refuses to start without them.
-
-To expose it to ChatGPT, use a tunnel like [ngrok](https://ngrok.com/):
+**Step 1 — start a tunnel** with [ngrok](https://ngrok.com/) to get a public HTTPS URL:
 
 ```bash
 ngrok http 8000
+# note the forwarding URL, e.g. https://abc123.ngrok-free.app
 ```
 
-Then in ChatGPT (requires Pro, Team, Enterprise, or Edu with Developer Mode enabled):
+**Step 2 — create a connector** in ChatGPT (requires Pro, Team, Enterprise, or Edu):
 
 1. Go to **Settings → Connectors** and click **New Connector**
-2. Set the **MCP Server URL** to your ngrok URL (e.g. `https://abc123.ngrok.app/mcp`)
-3. Set **Authentication** to **OAuth**
-4. Under **Client registration**, choose **User-Defined OAuth Client**
-5. Enter your **OAuth Client ID** (`snaptrade-mcp`) and **OAuth Client Secret** (`your-secret`)
-6. Click **Create** — ChatGPT will complete the OAuth flow automatically
+2. Set the **MCP Server URL** to `https://abc123.ngrok-free.app/mcp`
+3. Set **Authentication** to **OAuth** and note the **Callback URL** shown (e.g. `https://chatgpt.com/connector/oauth/xxxx`)
+4. Choose **Token endpoint auth method**: `client_secret_post`
+5. Click **Create**
+
+**Step 3 — start the server** with the credentials you chose and the callback URL from step 2.
+
+Fill in your `.env` file:
+
+```bash
+SNAPTRADE_CLIENT_ID=your_client_id
+SNAPTRADE_CONSUMER_KEY=your_consumer_key
+SNAPTRADE_OAUTH_CLIENT_ID=your-client-id
+SNAPTRADE_OAUTH_CLIENT_SECRET=your-client-secret
+SNAPTRADE_OAUTH_REDIRECT_URI=https://chatgpt.com/connector/oauth/xxxx
+SNAPTRADE_PUBLIC_URL=https://abc123.ngrok-free.app
+```
+
+Then start the server:
+
+```bash
+set -a && source .env && set +a  # export all vars from .env to child processes
+snaptrade-mcp --transport streamable-http
+```
+
+`SNAPTRADE_OAUTH_CLIENT_ID`, `SNAPTRADE_OAUTH_CLIENT_SECRET`, and `SNAPTRADE_OAUTH_REDIRECT_URI` are required. Set `SNAPTRADE_PUBLIC_URL` to your ngrok URL so OAuth discovery metadata advertises reachable endpoints.
 
 To customize the host or port:
 
@@ -168,7 +182,7 @@ After installing, ask your AI agent:
 
 > "Set up my SnapTrade connection"
 
-This calls `snaptrade_setup`, which opens a browser window where you authorize your brokerage. You only need to do this once. Your user credentials are saved locally at `~/.snaptrade/config.json`.
+This calls `snaptrade_setup`, which opens a browser window **on the machine running the server** where you authorize your brokerage. This works with ChatGPT too — the AI triggers the tool, but the browser opens locally. You only need to do this once. Your user credentials are saved locally at `~/.snaptrade/config.json`.
 
 ## Example Prompts
 
@@ -214,6 +228,6 @@ snaptrade_mcp/
 The server supports two transport modes:
 
 - **STDIO** (default) — for local MCP clients (Claude Code, Claude Desktop, Cursor)
-- **Streamable HTTP** (`--transport streamable-http`) — for remote clients (ChatGPT). Requires `SNAPTRADE_OAUTH_CLIENT_ID` and `SNAPTRADE_OAUTH_CLIENT_SECRET` for OAuth 2.0 authentication.
+- **Streamable HTTP** (`--transport streamable-http`) — for remote clients (ChatGPT). Requires `SNAPTRADE_OAUTH_CLIENT_ID`, `SNAPTRADE_OAUTH_CLIENT_SECRET`, `SNAPTRADE_OAUTH_REDIRECT_URI` (callback URL from your OAuth client), and `SNAPTRADE_PUBLIC_URL` (your ngrok URL) for OAuth 2.0 authentication.
 
 Each tool function calls the SnapTrade Python SDK, flattens the response into clean JSON, and returns it to the AI client.
