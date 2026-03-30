@@ -131,14 +131,15 @@ Add to `.cursor/mcp.json` in your project root. **Add `.cursor/mcp.json` to your
 
 ### ChatGPT (via streamable-http)
 
-ChatGPT requires an HTTP-based MCP transport. The `SNAPTRADE_MCP_TOKEN` environment variable is **required** for HTTP transports — the server will refuse to start without it.
+ChatGPT requires an HTTP-based MCP transport with OAuth 2.0. Set your OAuth credentials and start the server:
 
 ```bash
-export SNAPTRADE_MCP_TOKEN="your-secret-token"
+export SNAPTRADE_OAUTH_CLIENT_ID="snaptrade-mcp"
+export SNAPTRADE_OAUTH_CLIENT_SECRET="your-secret"
 snaptrade-mcp --transport streamable-http
 ```
 
-This starts a local HTTP server at `http://127.0.0.1:8000/mcp` with Bearer token authentication. Clients must send `Authorization: Bearer your-secret-token` with every request.
+Both environment variables are required — the server refuses to start without them.
 
 To expose it to ChatGPT, use a tunnel like [ngrok](https://ngrok.com/):
 
@@ -148,9 +149,12 @@ ngrok http 8000
 
 Then in ChatGPT (requires Pro, Team, Enterprise, or Edu with Developer Mode enabled):
 
-1. Go to **Settings → Developer Mode**
-2. Add the ngrok URL as an MCP app (e.g. `https://abc123.ngrok.app/mcp`)
-3. Configure the Bearer token when adding the app
+1. Go to **Settings → Connectors** and click **New Connector**
+2. Set the **MCP Server URL** to your ngrok URL (e.g. `https://abc123.ngrok.app/mcp`)
+3. Set **Authentication** to **OAuth**
+4. Under **Client registration**, choose **User-Defined OAuth Client**
+5. Enter your **OAuth Client ID** (`snaptrade-mcp`) and **OAuth Client Secret** (`your-secret`)
+6. Click **Create** — ChatGPT will complete the OAuth flow automatically
 
 To customize the host or port:
 
@@ -201,14 +205,15 @@ This calls `snaptrade_setup`, which opens a browser window where you authorize y
 
 ```text
 snaptrade_mcp/
-  server.py         # All 10 tools, 2 resources, 2 prompt templates
-  __init__.py       # Package marker + version
-  __main__.py       # Entry point (python -m snaptrade_mcp)
+  server.py           # All 10 tools, 2 resources, 2 prompt templates
+  oauth_provider.py   # In-memory OAuth 2.0 authorization server (for HTTP transport)
+  __init__.py         # Package marker + version
+  __main__.py         # Entry point (python -m snaptrade_mcp)
 ```
 
 The server supports two transport modes:
 
 - **STDIO** (default) — for local MCP clients (Claude Code, Claude Desktop, Cursor)
-- **Streamable HTTP** (`--transport streamable-http`) — for remote clients (ChatGPT). Requires `SNAPTRADE_MCP_TOKEN` for Bearer token authentication.
+- **Streamable HTTP** (`--transport streamable-http`) — for remote clients (ChatGPT). Requires `SNAPTRADE_OAUTH_CLIENT_ID` and `SNAPTRADE_OAUTH_CLIENT_SECRET` for OAuth 2.0 authentication.
 
 Each tool function calls the SnapTrade Python SDK, flattens the response into clean JSON, and returns it to the AI client.

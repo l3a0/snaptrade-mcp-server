@@ -62,33 +62,25 @@ import webbrowser
 from pathlib import Path
 from typing import Any
 
-from mcp.server.auth.provider import AccessToken, TokenVerifier
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
 from pydantic import AnyHttpUrl
 
+from snaptrade_mcp.oauth_provider import SimpleOAuthProvider
 from snaptrade_mcp.snaptrade_client import SnapTrade
 
 # ---------------------------------------------------------------------------
 # Server setup
 # ---------------------------------------------------------------------------
 
-_MCP_TOKEN = os.environ.get("SNAPTRADE_MCP_TOKEN")
+_OAUTH_CLIENT_ID = os.environ.get("SNAPTRADE_OAUTH_CLIENT_ID")
+_OAUTH_CLIENT_SECRET = os.environ.get("SNAPTRADE_OAUTH_CLIENT_SECRET")
 
-
-class _StaticTokenVerifier(TokenVerifier):
-    """Validates Bearer tokens against a static secret from SNAPTRADE_MCP_TOKEN."""
-
-    async def verify_token(self, token: str) -> AccessToken | None:
-        if token == _MCP_TOKEN:
-            return AccessToken(
-                token=token,
-                client_id="snaptrade-user",
-                scopes=["read"],
-                expires_at=None,
-            )
-        return None
-
+_oauth_provider = (
+    SimpleOAuthProvider(_OAUTH_CLIENT_ID, _OAUTH_CLIENT_SECRET)
+    if _OAUTH_CLIENT_ID and _OAUTH_CLIENT_SECRET
+    else None
+)
 
 mcp = FastMCP(
     "snaptrade",
@@ -98,9 +90,9 @@ mcp = FastMCP(
         issuer_url=AnyHttpUrl("http://localhost:8000"),
         resource_server_url=AnyHttpUrl("http://localhost:8000/mcp"),
     )
-    if _MCP_TOKEN
+    if _oauth_provider
     else None,
-    token_verifier=_StaticTokenVerifier() if _MCP_TOKEN else None,
+    auth_server_provider=_oauth_provider,
 )
 
 CONFIG_PATH = Path.home() / ".snaptrade" / "config.json"
@@ -623,10 +615,10 @@ def main():
 
     args = parser.parse_args()
 
-    if args.transport in ("sse", "streamable-http") and not _MCP_TOKEN:
+    if args.transport in ("sse", "streamable-http") and not _oauth_provider:
         parser.error(
-            "SNAPTRADE_MCP_TOKEN environment variable is required for HTTP transports. "
-            "Set it to a secret value that clients must send as a Bearer token."
+            "SNAPTRADE_OAUTH_CLIENT_ID and SNAPTRADE_OAUTH_CLIENT_SECRET environment "
+            "variables are required for HTTP transports."
         )
 
     mcp.settings.host = args.host
