@@ -114,6 +114,7 @@ class SimpleOAuthProvider(OAuthAuthorizationServerProvider[AuthorizationCode, Re
         access_token = secrets.token_urlsafe(32)
         refresh_token_str = secrets.token_urlsafe(32)
         expires_at = int(time.time()) + 3600  # 1 hour
+        assert expires_at > 0, "expires_at must be a positive timestamp"
 
         self._access_tokens[access_token] = ServerAccessToken(
             token=access_token,
@@ -161,6 +162,7 @@ class SimpleOAuthProvider(OAuthAuthorizationServerProvider[AuthorizationCode, Re
         access_token = secrets.token_urlsafe(32)
         new_refresh = secrets.token_urlsafe(32)
         expires_at = int(time.time()) + 3600
+        assert expires_at > 0, "expires_at must be a positive timestamp"
         use_scopes = scopes or refresh_token.scopes
 
         self._access_tokens[access_token] = ServerAccessToken(
@@ -188,7 +190,7 @@ class SimpleOAuthProvider(OAuthAuthorizationServerProvider[AuthorizationCode, Re
 
     async def load_access_token(self, token: str) -> ServerAccessToken | None:
         at = self._access_tokens.get(token)
-        if at and (at.expires_at is None or at.expires_at > time.time()):
+        if at and at.expires_at is not None and at.expires_at > time.time():
             return at
         return None
 

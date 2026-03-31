@@ -250,6 +250,72 @@ def test_main_applies_host_port_and_transport():
 # ---------------------------------------------------------------------------
 
 
+def test_resource_server_url_includes_mcp_path():
+    """AuthSettings.resource_server_url ends with /mcp."""
+    result = subprocess.run(
+        [sys.executable, "-c", "\n".join([
+            "import os",
+            'os.environ["SNAPTRADE_OAUTH_CLIENT_ID"] = "test-client"',
+            'os.environ["SNAPTRADE_OAUTH_CLIENT_SECRET"] = "test-secret"',
+            'os.environ["SNAPTRADE_OAUTH_REDIRECT_URI"] = "https://example.com/cb"',
+            'os.environ["SNAPTRADE_PUBLIC_URL"] = "https://my-tunnel.ngrok-free.app"',
+            "from snaptrade_mcp.server import mcp",
+            "url = str(mcp.settings.auth.resource_server_url)",
+            "assert url.endswith('/mcp'), f'Expected /mcp suffix, got {url}'",
+            'print("resource_server_url ok")',
+        ])],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+    assert "resource_server_url ok" in result.stdout
+
+
+def test_public_url_trailing_slash_stripped():
+    """_PUBLIC_URL has trailing slashes stripped before use."""
+    result = subprocess.run(
+        [sys.executable, "-c", "\n".join([
+            "import os",
+            'os.environ["SNAPTRADE_OAUTH_CLIENT_ID"] = "test-client"',
+            'os.environ["SNAPTRADE_OAUTH_CLIENT_SECRET"] = "test-secret"',
+            'os.environ["SNAPTRADE_OAUTH_REDIRECT_URI"] = "https://example.com/cb"',
+            'os.environ["SNAPTRADE_PUBLIC_URL"] = "https://my-tunnel.ngrok-free.app/"',
+            "from snaptrade_mcp.server import _PUBLIC_URL",
+            "assert not _PUBLIC_URL.endswith('/'), f'Expected no trailing slash, got {_PUBLIC_URL}'",
+            'print("trailing slash stripped")',
+        ])],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+    assert "trailing slash stripped" in result.stdout
+
+
+def test_transport_security_none_for_localhost():
+    """_transport_security is None when PUBLIC_URL is localhost (no DNS rebinding risk)."""
+    result = subprocess.run(
+        [sys.executable, "-c", "\n".join([
+            "import os",
+            'os.environ["SNAPTRADE_OAUTH_CLIENT_ID"] = "test-client"',
+            'os.environ["SNAPTRADE_OAUTH_CLIENT_SECRET"] = "test-secret"',
+            'os.environ["SNAPTRADE_OAUTH_REDIRECT_URI"] = "https://example.com/cb"',
+            'os.environ["SNAPTRADE_PUBLIC_URL"] = "http://localhost:8000"',
+            "from snaptrade_mcp.server import _transport_security",
+            "assert _transport_security is None, f'Expected None, got {_transport_security}'",
+            'print("transport_security none for localhost")',
+        ])],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+    assert "transport_security none for localhost" in result.stdout
+
+
+# ---------------------------------------------------------------------------
+# OAuth provider logic
+# ---------------------------------------------------------------------------
+
+
 @pytest.mark.anyio
 async def test_oauth_provider_accepts_valid_client():
     """SimpleOAuthProvider returns the pre-registered client for the correct client_id."""

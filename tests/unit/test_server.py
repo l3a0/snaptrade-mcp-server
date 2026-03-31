@@ -4,6 +4,9 @@ import json
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import pytest
+
+import snaptrade_mcp.server as server
 from snaptrade_mcp.server import snaptrade_setup
 
 
@@ -27,6 +30,56 @@ def test_snaptrade_setup_opens_browser_locally(tmp_path: Path) -> None:
 
     open_browser.assert_called_once_with("https://example.com/connect")
     assert result["status"] == "opened"
+
+
+# ---------------------------------------------------------------------------
+# _get_client error paths
+# ---------------------------------------------------------------------------
+
+
+def test_get_client_raises_on_missing_client_id() -> None:
+    """_get_client raises ValueError when SNAPTRADE_CLIENT_ID is unset."""
+    with patch.dict("os.environ", {"SNAPTRADE_CONSUMER_KEY": "key"}, clear=True):
+        with pytest.raises(ValueError, match="SNAPTRADE_CLIENT_ID"):
+            getattr(server, "_get_client")()
+
+
+def test_get_client_raises_on_missing_consumer_key() -> None:
+    """_get_client raises ValueError when SNAPTRADE_CONSUMER_KEY is unset."""
+    with patch.dict("os.environ", {"SNAPTRADE_CLIENT_ID": "id"}, clear=True):
+        with pytest.raises(ValueError, match="SNAPTRADE_CONSUMER_KEY"):
+            getattr(server, "_get_client")()
+
+
+# ---------------------------------------------------------------------------
+# _get_user error paths
+# ---------------------------------------------------------------------------
+
+
+def test_get_user_raises_on_missing_config(tmp_path: Path) -> None:
+    """_get_user raises ValueError when the config file doesn't exist."""
+    missing = tmp_path / "nonexistent" / "config.json"
+    with patch("snaptrade_mcp.server.CONFIG_PATH", missing):
+        with pytest.raises(ValueError, match="No config found"):
+            getattr(server, "_get_user")()
+
+
+def test_get_user_raises_on_missing_user_id(tmp_path: Path) -> None:
+    """_get_user raises ValueError when config has no user_id."""
+    config = tmp_path / "config.json"
+    config.write_text(json.dumps({"user_secret": "secret"}))
+    with patch("snaptrade_mcp.server.CONFIG_PATH", config):
+        with pytest.raises(ValueError, match="user_id"):
+            getattr(server, "_get_user")()
+
+
+def test_get_user_raises_on_missing_user_secret(tmp_path: Path) -> None:
+    """_get_user raises ValueError when config has no user_secret."""
+    config = tmp_path / "config.json"
+    config.write_text(json.dumps({"user_id": "user"}))
+    with patch("snaptrade_mcp.server.CONFIG_PATH", config):
+        with pytest.raises(ValueError, match="user_secret"):
+            getattr(server, "_get_user")()
 
 
 def test_snaptrade_setup_returns_error_when_no_redirect_url(tmp_path: Path) -> None:
