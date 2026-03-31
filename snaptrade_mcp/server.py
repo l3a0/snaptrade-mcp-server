@@ -2,8 +2,9 @@
 SnapTrade MCP Server — read-only brokerage data for AI agents.
 
 Exposes 10 tools, 2 resources, and 2 prompt templates via the Model Context
-Protocol. Works with Claude Code, Claude Desktop, Cursor, Windsurf, and any
-other MCP-compatible client.
+Protocol. Supports two transport modes: STDIO (default, for local clients like
+Claude Code and Cursor) and streamable-http (for remote clients like ChatGPT,
+with OAuth 2.0 authentication). Works with any MCP-compatible client.
 
 All tools are read-only. No trading, no account modification, no credential
 exposure. Safe by design.
@@ -562,7 +563,7 @@ def snaptrade_setup() -> str:
 # snaptrade_check_status and snaptrade_list_brokerages are NOT good resources
 # because their data can change (API status, supported brokerages). They are
 # already exposed as tools above, which is the correct primitive for dynamic
-# data. Resources are best for things like user documentation or fixed configs.
+# data. Kept here for learning purposes — see CLAUDE.md "MCP primitives used".
 
 
 @mcp.resource("snaptrade://status")

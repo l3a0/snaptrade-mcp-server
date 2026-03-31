@@ -168,7 +168,7 @@ set -a && source .env && set +a  # export all vars from .env to child processes
 snaptrade-mcp --transport streamable-http
 ```
 
-`SNAPTRADE_OAUTH_CLIENT_ID`, `SNAPTRADE_OAUTH_CLIENT_SECRET`, `SNAPTRADE_OAUTH_REDIRECT_URI`, and `SNAPTRADE_PUBLIC_URL` are all required. Set `SNAPTRADE_PUBLIC_URL` to your public-facing base URL (e.g. your ngrok URL) so OAuth discovery metadata advertises reachable endpoints.
+All four OAuth environment variables are required for streamable-http transport. Set `SNAPTRADE_OAUTH_REDIRECT_URI` to the Callback URL from Step 2 above (e.g. `https://chatgpt.com/connector/oauth/xxxx`). Set `SNAPTRADE_PUBLIC_URL` to your public-facing base URL (e.g. your ngrok URL) so OAuth discovery metadata advertises reachable endpoints.
 
 To customize the host or port:
 
@@ -208,6 +208,14 @@ This calls `snaptrade_setup`, which opens a browser window **on the machine runn
 ### "No config found" error
 
 - Run `snaptrade_setup` through the MCP server first to connect a brokerage and create `~/.snaptrade/config.json`.
+
+### "OAuth env vars required" / "PUBLIC_URL required" error
+
+- These errors occur when using `--transport streamable-http` without the required OAuth environment variables. All four must be set:
+  - `SNAPTRADE_OAUTH_CLIENT_ID` — a client ID you choose for the OAuth connector
+  - `SNAPTRADE_OAUTH_CLIENT_SECRET` — a client secret you choose
+  - `SNAPTRADE_OAUTH_REDIRECT_URI` — the Callback URL from your ChatGPT connector (Step 2 above)
+  - `SNAPTRADE_PUBLIC_URL` — your public-facing base URL (e.g. your ngrok forwarding URL)
 
 ## Security
 

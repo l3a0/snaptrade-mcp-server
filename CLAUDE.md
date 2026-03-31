@@ -44,6 +44,9 @@ touch the live config — keeping test and server credentials fully isolated.
 - No audit logging exists — this is a known gap documented in server.py.
 - chmod 600 on config.json limits OS-level access but is not encryption.
 - Do not use inline command-line credential assignments (visible in `ps aux`).
+- PKCE is required for OAuth 2.0 code exchange (enforced by the MCP SDK).
+- DNS rebinding protection via `TransportSecuritySettings` when using ngrok.
+- OAuth tokens are in-memory only — lost on server restart; clients re-auth automatically.
 
 ## MCP primitives used
 
@@ -85,5 +88,10 @@ Copy `.env` (gitignored) and fill in credentials before running the server:
 
 ```bash
 set -a && source .env && set +a  # export all vars from .env to child processes
+
+# STDIO transport (default) — for local clients (Claude Code, Cursor, etc.)
+snaptrade-mcp
+
+# HTTP transport — for remote clients (ChatGPT). Requires OAuth env vars + PUBLIC_URL.
 snaptrade-mcp --transport streamable-http
 ```
