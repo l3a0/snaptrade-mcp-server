@@ -21,16 +21,18 @@ Three separate layers of credentials:
    after running snaptrade_setup. Identify the specific brokerage user. The file is
    chmod 600 (owner read/write only).
 
-3. **Streamable-HTTP transport credentials** — required when running with
+3. **Streamable HTTP transport credentials** — required when running with
    `--transport streamable-http` (e.g. for ChatGPT). All four vars must be set
    before the server starts; missing any one causes a clear startup error:
    - `SNAPTRADE_OAUTH_CLIENT_ID` / `SNAPTRADE_OAUTH_CLIENT_SECRET` — credentials you
      generate (for example with Python's `secrets` library) and enter into both
      the ChatGPT connector and this server's environment.
    - `SNAPTRADE_OAUTH_REDIRECT_URI` — the callback URL provided by your OAuth client
-     at registration time (e.g. `https://chatgpt.com/connector/oauth/xxxx`). Required.
+     at registration time (e.g. `https://chatgpt.com/connector/oauth/xxxx`). Must be
+     a valid absolute `https://` URL. Required.
    - `SNAPTRADE_PUBLIC_URL` — the public-facing base URL (e.g. your ngrok URL) so
-     OAuth discovery metadata advertises reachable endpoints. Required.
+     OAuth discovery metadata advertises reachable endpoints. Must be a valid
+     absolute `https://` URL. Required.
 
 `_get_client()` reads app credentials from env vars.
 `_get_user()` reads user credentials from `CONFIG_PATH` (default `~/.snaptrade/config.json`).
@@ -93,6 +95,6 @@ set -a && source .env && set +a  # export all vars from .env to child processes
 # STDIO transport (default) — for local clients (Claude Code, Cursor, etc.)
 snaptrade-mcp
 
-# HTTP transport — for remote clients (ChatGPT). Requires OAuth env vars + PUBLIC_URL.
+# Streamable HTTP transport — for remote clients (ChatGPT). Requires OAuth env vars + PUBLIC_URL.
 snaptrade-mcp --transport streamable-http
 ```

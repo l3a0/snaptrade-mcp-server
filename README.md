@@ -131,7 +131,7 @@ Add to `.cursor/mcp.json` in your project root. **Add `.cursor/mcp.json` to your
 
 ### ChatGPT (via streamable-http)
 
-ChatGPT requires an HTTP-based MCP transport with OAuth 2.0.
+ChatGPT requires Streamable HTTP (`--transport streamable-http`) with OAuth 2.0.
 
 **Step 1 — start a tunnel** with [ngrok](https://ngrok.com/) to get a public HTTPS URL:
 
@@ -177,7 +177,9 @@ set -a && source .env && set +a  # export all vars from .env to child processes
 snaptrade-mcp --transport streamable-http
 ```
 
-All four OAuth environment variables are required for streamable-http transport. Set `SNAPTRADE_OAUTH_CLIENT_ID` and `SNAPTRADE_OAUTH_CLIENT_SECRET` to the exact values you generated in Step 2 and entered into the ChatGPT connector. Set `SNAPTRADE_OAUTH_REDIRECT_URI` to the Callback URL from Step 3 above (e.g. `https://chatgpt.com/connector/oauth/xxxx`). Set `SNAPTRADE_PUBLIC_URL` to your public-facing base URL (e.g. your ngrok URL) so OAuth discovery metadata advertises reachable endpoints.
+All four OAuth environment variables are required for Streamable HTTP. Set `SNAPTRADE_OAUTH_CLIENT_ID` and `SNAPTRADE_OAUTH_CLIENT_SECRET` to the exact values you generated in Step 2 and entered into the ChatGPT connector. Set `SNAPTRADE_OAUTH_REDIRECT_URI` to the Callback URL from Step 3 above (e.g. `https://chatgpt.com/connector/oauth/xxxx`). Set `SNAPTRADE_PUBLIC_URL` to your public-facing base URL (e.g. your ngrok URL) so OAuth discovery metadata advertises reachable endpoints.
+
+Both `SNAPTRADE_OAUTH_REDIRECT_URI` and `SNAPTRADE_PUBLIC_URL` must be full `https://...` URLs. Invalid URL values can cause startup to fail before the CLI reaches its normal validation errors.
 
 To customize the host or port:
 
@@ -220,11 +222,18 @@ This calls `snaptrade_setup`, which opens a browser window **on the machine runn
 
 ### "OAuth env vars required" / "PUBLIC_URL required" error
 
-- These errors occur when using `--transport streamable-http` without the required OAuth environment variables. All four must be set:
+- These errors occur when using Streamable HTTP (`--transport streamable-http`) without the required OAuth environment variables. All four must be set:
   - `SNAPTRADE_OAUTH_CLIENT_ID` — the client ID you generated and entered into the ChatGPT connector
   - `SNAPTRADE_OAUTH_CLIENT_SECRET` — the matching client secret you generated and entered into the ChatGPT connector
   - `SNAPTRADE_OAUTH_REDIRECT_URI` — the Callback URL from your ChatGPT connector (Step 3 above)
   - `SNAPTRADE_PUBLIC_URL` — your public-facing base URL (e.g. your ngrok forwarding URL)
+
+### "Invalid URL" startup error
+
+- `SNAPTRADE_OAUTH_REDIRECT_URI` and `SNAPTRADE_PUBLIC_URL` must be valid absolute `https://` URLs.
+- Example valid values:
+  - `SNAPTRADE_OAUTH_REDIRECT_URI=https://chatgpt.com/connector/oauth/xxxx`
+  - `SNAPTRADE_PUBLIC_URL=https://abc123.ngrok-free.app`
 
 ## Security
 

@@ -160,6 +160,71 @@ def test_public_url_sets_issuer():
     assert "my-tunnel.ngrok-free.app" in result.stdout
 
 
+def test_http_transport_fails_with_invalid_public_url():
+    """Invalid SNAPTRADE_PUBLIC_URL values fail fast during startup."""
+    env = {k: v for k, v in os.environ.items()}
+    env["SNAPTRADE_OAUTH_CLIENT_ID"] = "test-client"
+    env["SNAPTRADE_OAUTH_CLIENT_SECRET"] = "test-secret"
+    env["SNAPTRADE_OAUTH_REDIRECT_URI"] = "https://example.com/cb"
+    env["SNAPTRADE_PUBLIC_URL"] = "not-a-url"
+    result = subprocess.run(
+        [sys.executable, "-m", "snaptrade_mcp", "--transport", "streamable-http"],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert result.returncode != 0
+    assert "SNAPTRADE_PUBLIC_URL" in result.stderr or "url" in result.stderr.lower()
+
+
+def test_http_transport_fails_with_invalid_redirect_uri():
+    """Invalid SNAPTRADE_OAUTH_REDIRECT_URI values fail fast during startup."""
+    env = {k: v for k, v in os.environ.items()}
+    env["SNAPTRADE_OAUTH_CLIENT_ID"] = "test-client"
+    env["SNAPTRADE_OAUTH_CLIENT_SECRET"] = "test-secret"
+    env["SNAPTRADE_OAUTH_REDIRECT_URI"] = "not-a-url"
+    env["SNAPTRADE_PUBLIC_URL"] = "https://my-tunnel.ngrok-free.app"
+    result = subprocess.run(
+        [sys.executable, "-m", "snaptrade_mcp", "--transport", "streamable-http"],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert result.returncode != 0
+    assert "SNAPTRADE_OAUTH_REDIRECT_URI" in result.stderr or "url" in result.stderr.lower()
+
+
+def test_main_applies_host_port_and_transport():
+    """CLI host/port flags are applied before mcp.run is called."""
+    result = subprocess.run(
+        [sys.executable, "-c", "\n".join([
+            "import os",
+            "import sys",
+            'os.environ[\"SNAPTRADE_OAUTH_CLIENT_ID\"] = \"test-client\"',
+            'os.environ[\"SNAPTRADE_OAUTH_CLIENT_SECRET\"] = \"test-secret\"',
+            'os.environ[\"SNAPTRADE_OAUTH_REDIRECT_URI\"] = \"https://example.com/cb\"',
+            'os.environ[\"SNAPTRADE_PUBLIC_URL\"] = \"https://my-tunnel.ngrok-free.app\"',
+            "import snaptrade_mcp.server as server",
+            "def fake_run(*, transport):",
+            "    print(server.mcp.settings.host)",
+            "    print(server.mcp.settings.port)",
+            "    print(transport)",
+            "server.mcp.run = fake_run",
+            "sys.argv = [",
+            "    'snaptrade-mcp', '--transport', 'streamable-http',",
+            "    '--host', '0.0.0.0', '--port', '3000'",
+            "]",
+            "server.main()",
+        ])],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+    assert "0.0.0.0" in result.stdout
+    assert "3000" in result.stdout
+    assert "streamable-http" in result.stdout
+
+
 # ---------------------------------------------------------------------------
 # OAuth provider logic
 # ---------------------------------------------------------------------------
