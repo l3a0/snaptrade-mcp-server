@@ -36,7 +36,7 @@ def test_sse_transport_rejected():
 
 
 # ---------------------------------------------------------------------------
-# HTTP transport requires OAuth credentials
+# Streamable HTTP requires OAuth credentials
 # ---------------------------------------------------------------------------
 
 
@@ -100,8 +100,28 @@ def test_auth_disabled_when_oauth_credentials_unset():
     assert "no auth" in result.stdout
 
 
+def test_auth_disabled_when_oauth_config_is_partial():
+    """Auth stays disabled until all required OAuth env vars are present."""
+    result = subprocess.run(
+        [sys.executable, "-c", "\n".join([
+            "import os",
+            'os.environ[\"SNAPTRADE_OAUTH_CLIENT_ID\"] = \"test-client\"',
+            'os.environ[\"SNAPTRADE_OAUTH_CLIENT_SECRET\"] = \"test-secret\"',
+            'os.environ.pop(\"SNAPTRADE_OAUTH_REDIRECT_URI\", None)',
+            'os.environ[\"SNAPTRADE_PUBLIC_URL\"] = \"https://my-tunnel.ngrok-free.app\"',
+            "from snaptrade_mcp.server import mcp",
+            "assert mcp.settings.auth is None",
+            'print(\"partial config disables auth\")',
+        ])],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+    assert "partial config disables auth" in result.stdout
+
+
 # ---------------------------------------------------------------------------
-# HTTP transport requires SNAPTRADE_OAUTH_REDIRECT_URI
+# Streamable HTTP requires SNAPTRADE_OAUTH_REDIRECT_URI
 # ---------------------------------------------------------------------------
 
 

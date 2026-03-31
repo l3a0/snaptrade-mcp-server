@@ -275,7 +275,7 @@
       <li><code>pyproject.toml</code> — dependencies, entry points, build config</li>
       <li><code>snaptrade_mcp/__init__.py</code> — version metadata</li>
       <li><code>snaptrade_mcp/__main__.py</code> — module entry point</li>
-      <li><code>snaptrade_mcp/oauth_provider.py</code> — in-memory OAuth 2.0 provider for HTTP transport</li>
+      <li><code>snaptrade_mcp/oauth_provider.py</code> — in-memory OAuth 2.0 provider for Streamable HTTP transport</li>
       <li><code>snaptrade_mcp/snaptrade_client.py</code> — SnapTrade SDK import wrapper</li>
     </ul>
     <h4>Key concepts</h4>
@@ -299,7 +299,7 @@
     <h4>Key concepts</h4>
     <ul>
       <li><code>FastMCP</code> — simplified MCP server class</li>
-      <li>STDIO transport (default) — server communicates via stdin/stdout; HTTP transport (streamable-http) — for remote clients like ChatGPT via OAuth 2.0</li>
+      <li>STDIO transport (default) — server communicates via stdin/stdout; Streamable HTTP transport (`streamable-http`) — for remote clients like ChatGPT via OAuth 2.0</li>
       <li><code>@mcp.tool()</code> — decorator to register tools that AI agents can call</li>
       <li><code>@mcp.resource()</code> — decorator to expose static data endpoints</li>
       <li><code>@mcp.prompt()</code> — decorator for prompt templates</li>
@@ -320,7 +320,7 @@
     <ul>
       <li><strong>Layer 1 — Developer credentials</strong> (env vars): <code>SNAPTRADE_CLIENT_ID</code> + <code>SNAPTRADE_CONSUMER_KEY</code></li>
       <li><strong>Layer 2 — User credentials</strong> (local file): <code>~/.snaptrade/config.json</code> with <code>user_id</code> + <code>user_secret</code></li>
-      <li><strong>Layer 3 — OAuth credentials</strong> (env vars, HTTP transport only): <code>SNAPTRADE_OAUTH_CLIENT_ID</code>, <code>SNAPTRADE_OAUTH_CLIENT_SECRET</code>, <code>SNAPTRADE_OAUTH_REDIRECT_URI</code>, <code>SNAPTRADE_PUBLIC_URL</code></li>
+      <li><strong>Layer 3 — OAuth credentials</strong> (env vars, Streamable HTTP only): <code>SNAPTRADE_OAUTH_CLIENT_ID</code>, <code>SNAPTRADE_OAUTH_CLIENT_SECRET</code>, <code>SNAPTRADE_OAUTH_REDIRECT_URI</code>, <code>SNAPTRADE_PUBLIC_URL</code></li>
       <li><code>_get_client()</code> reads env vars and creates a <code>SnapTrade</code> SDK instance</li>
       <li><code>_get_user()</code> reads the local config file</li>
       <li><code>SimpleOAuthProvider</code> handles OAuth 2.0 auth code flow with PKCE, auto-approve, token rotation</li>
@@ -403,7 +403,7 @@
       <li>Get SnapTrade API credentials from <code>https://snaptrade.com</code></li>
       <li>Set env vars: <code>export SNAPTRADE_CLIENT_ID=... SNAPTRADE_CONSUMER_KEY=...</code></li>
       <li>STDIO mode: <code>python -m snaptrade_mcp</code> (default, for Claude/Cursor)</li>
-      <li>HTTP mode: <code>snaptrade-mcp --transport streamable-http</code> (requires OAuth env vars + <code>SNAPTRADE_PUBLIC_URL</code>)</li>
+      <li>Streamable HTTP mode: <code>snaptrade-mcp --transport streamable-http</code> (requires OAuth env vars + <code>SNAPTRADE_PUBLIC_URL</code>)</li>
       <li>Or add to Claude Code: <code>claude mcp add snaptrade -s user -e SNAPTRADE_CLIENT_ID=... -e SNAPTRADE_CONSUMER_KEY=... -- snaptrade-mcp</code></li>
       <li>Test by asking Claude to call <code>snaptrade_check_status</code></li>
     </ul>
@@ -464,7 +464,7 @@ graph LR
     CFG -.-> FM
   </pre>
   <div class="legend">
-    <strong>Key:</strong> Solid arrows = data flow. Dotted arrows = config reads. <strong>STDIO transport</strong> (default): the server is a subprocess launched by local AI clients, communicating over stdin/stdout. <strong>HTTP transport</strong>: the server listens on a port and accepts OAuth 2.0-authenticated requests from remote clients like ChatGPT via an ngrok tunnel.
+    <strong>Key:</strong> Solid arrows = data flow. Dotted arrows = config reads. <strong>STDIO transport</strong> (default): the server is a subprocess launched by local AI clients, communicating over stdin/stdout. <strong>Streamable HTTP transport</strong>: the server listens on a port and accepts OAuth 2.0-authenticated requests from remote clients like ChatGPT via an ngrok tunnel.
   </div>
 </section>
 
@@ -694,7 +694,7 @@ sequenceDiagram
 
     AI->>MCP: tool_call("snaptrade_get_positions", {account_id})
 
-    alt HTTP Transport (streamable-http)
+    alt Streamable HTTP Transport (streamable-http)
         MCP->>MCP: SimpleOAuthProvider.load_access_token()
         MCP->>MCP: Validate Bearer token not expired
         Note over MCP: Token valid → proceed
@@ -1057,7 +1057,7 @@ sequenceDiagram
 <section id="transport">
   <h2>14. Transport Selection</h2>
   <span class="lesson-tag">Lesson 7</span>
-  <p>How the server chooses between STDIO and HTTP transport based on CLI args and environment.</p>
+  <p>How the server chooses between STDIO and Streamable HTTP transport based on CLI args and environment.</p>
   <pre class="mermaid">
 flowchart TD
     START["snaptrade-mcp CLI invoked"] --> PARSE["argparse reads<br/>--transport, --host, --port"]
