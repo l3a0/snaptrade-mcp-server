@@ -21,8 +21,9 @@ Three separate layers of credentials:
    after running snaptrade_setup. Identify the specific brokerage user. The file is
    chmod 600 (owner read/write only).
 
-3. **HTTP transport OAuth credentials** — required only when running with
-   `--transport streamable-http` (e.g. for ChatGPT):
+3. **Streamable-HTTP transport credentials** — required when running with
+   `--transport streamable-http` (e.g. for ChatGPT). All four vars must be set
+   before the server starts; missing any one causes a clear startup error:
    - `SNAPTRADE_OAUTH_CLIENT_ID` / `SNAPTRADE_OAUTH_CLIENT_SECRET` — credentials you
      choose; they identify the OAuth client (ChatGPT) to this server.
    - `SNAPTRADE_OAUTH_REDIRECT_URI` — the callback URL provided by your OAuth client

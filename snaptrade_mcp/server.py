@@ -77,6 +77,8 @@ from snaptrade_mcp.snaptrade_client import SnapTrade
 _OAUTH_CLIENT_ID = os.environ.get("SNAPTRADE_OAUTH_CLIENT_ID")
 _OAUTH_CLIENT_SECRET = os.environ.get("SNAPTRADE_OAUTH_CLIENT_SECRET")
 _OAUTH_REDIRECT_URI = os.environ.get("SNAPTRADE_OAUTH_REDIRECT_URI")
+# Empty string when unset — a None default would crash AnyHttpUrl() at import time
+# before main() can emit a clean error. Validated in main() for streamable-http.
 _PUBLIC_URL = (os.environ.get("SNAPTRADE_PUBLIC_URL") or "").rstrip("/")
 
 _oauth_provider = (
@@ -85,9 +87,11 @@ _oauth_provider = (
     else None
 )
 
-# When a public URL is set (e.g. ngrok), add its host to the DNS rebinding allowlist
-# so the MCP SDK's host-header validation doesn't reject proxied requests.
-_public_host = AnyHttpUrl(_PUBLIC_URL).host if _oauth_provider else None
+# Add the ngrok host to the DNS rebinding allowlist so the MCP SDK's host-header
+# validation doesn't reject proxied requests. Both _oauth_provider and _PUBLIC_URL
+# must be set — if PUBLIC_URL is empty, AnyHttpUrl("") raises a ValidationError at
+# import time before main() can emit a clean argparse error.
+_public_host = AnyHttpUrl(_PUBLIC_URL).host if _oauth_provider and _PUBLIC_URL else None
 _transport_security = (
     TransportSecuritySettings(
         allowed_hosts=["127.0.0.1:*", "localhost:*", _public_host],
@@ -97,6 +101,10 @@ _transport_security = (
     else None
 )
 
+# auth= and auth_server_provider= are both gated on _PUBLIC_URL being non-empty.
+# FastMCP raises if auth_server_provider is set without auth settings, so they
+# must be kept in sync. The _PUBLIC_URL guard also prevents AnyHttpUrl("") from
+# crashing at import time — main() handles the missing-URL error cleanly instead.
 mcp = FastMCP(
     "snaptrade",
     instructions="Read-only access to brokerage accounts via SnapTrade. "
@@ -105,9 +113,9 @@ mcp = FastMCP(
         issuer_url=AnyHttpUrl(_PUBLIC_URL),
         resource_server_url=AnyHttpUrl(f"{_PUBLIC_URL}/mcp"),
     )
-    if _oauth_provider
+    if _oauth_provider and _PUBLIC_URL
     else None,
-    auth_server_provider=_oauth_provider,
+    auth_server_provider=_oauth_provider if _PUBLIC_URL else None,
     transport_security=_transport_security,
 )
 
@@ -620,13 +628,13 @@ def main():
     parser.add_argument(
         "--host",
         default="127.0.0.1",
-        help="Host to bind to for HTTP transports (default: 127.0.0.1)",
+        help="Host to bind to for streamable-http transport (default: 127.0.0.1)",
     )
     parser.add_argument(
         "--port",
         type=int,
         default=8000,
-        help="Port to bind to for HTTP transports (default: 8000)",
+        help="Port to bind to for streamable-http transport (default: 8000)",
     )
 
     args = parser.parse_args()

@@ -34,6 +34,17 @@ def test_invalid_transport_rejected():
     assert result.returncode != 0
 
 
+def test_sse_transport_rejected():
+    """sse is not an accepted transport choice."""
+    result = subprocess.run(
+        [sys.executable, "-m", "snaptrade_mcp", "--transport", "sse"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0
+    assert "sse" in result.stderr
+
+
 # ---------------------------------------------------------------------------
 # HTTP transport requires OAuth credentials
 # ---------------------------------------------------------------------------
@@ -61,18 +72,21 @@ def test_http_transport_fails_without_oauth_credentials():
 
 
 def test_auth_configured_when_oauth_credentials_set():
-    """FastMCP auth settings are populated when OAuth env vars are present."""
+    """FastMCP auth settings are populated when all OAuth env vars are present."""
     result = subprocess.run(
         [sys.executable, "-c", "\n".join([
             "import os",
             'os.environ["SNAPTRADE_OAUTH_CLIENT_ID"] = "test-client"',
             'os.environ["SNAPTRADE_OAUTH_CLIENT_SECRET"] = "test-secret"',
+            'os.environ["SNAPTRADE_OAUTH_REDIRECT_URI"] = "https://example.com/cb"',
+            'os.environ["SNAPTRADE_PUBLIC_URL"] = "https://my-tunnel.ngrok-free.app"',
             "from snaptrade_mcp.server import mcp",
             "assert mcp.settings.auth is not None",
             'print("auth configured")',
         ])],
         capture_output=True,
         text=True,
+        env={},
     )
     assert result.returncode == 0
     assert "auth configured" in result.stdout
@@ -114,6 +128,22 @@ def test_http_transport_fails_without_redirect_uri():
     )
     assert result.returncode != 0
     assert "SNAPTRADE_OAUTH_REDIRECT_URI" in result.stderr
+
+
+def test_http_transport_fails_without_public_url():
+    """streamable-http refuses to start when SNAPTRADE_PUBLIC_URL is unset."""
+    env = {k: v for k, v in os.environ.items() if k != "SNAPTRADE_PUBLIC_URL"}
+    env["SNAPTRADE_OAUTH_CLIENT_ID"] = "test-client"
+    env["SNAPTRADE_OAUTH_CLIENT_SECRET"] = "test-secret"
+    env["SNAPTRADE_OAUTH_REDIRECT_URI"] = "https://example.com/cb"
+    result = subprocess.run(
+        [sys.executable, "-m", "snaptrade_mcp", "--transport", "streamable-http"],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert result.returncode != 0
+    assert "SNAPTRADE_PUBLIC_URL" in result.stderr
 
 
 # ---------------------------------------------------------------------------
