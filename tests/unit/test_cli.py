@@ -97,6 +97,50 @@ def test_auth_disabled_when_oauth_credentials_unset():
 
 
 # ---------------------------------------------------------------------------
+# HTTP transport requires SNAPTRADE_OAUTH_REDIRECT_URI
+# ---------------------------------------------------------------------------
+
+
+def test_http_transport_fails_without_redirect_uri():
+    """streamable-http refuses to start when SNAPTRADE_OAUTH_REDIRECT_URI is unset."""
+    env = {k: v for k, v in os.environ.items() if k != "SNAPTRADE_OAUTH_REDIRECT_URI"}
+    env["SNAPTRADE_OAUTH_CLIENT_ID"] = "test-client"
+    env["SNAPTRADE_OAUTH_CLIENT_SECRET"] = "test-secret"
+    result = subprocess.run(
+        [sys.executable, "-m", "snaptrade_mcp", "--transport", "streamable-http"],
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert result.returncode != 0
+    assert "SNAPTRADE_OAUTH_REDIRECT_URI" in result.stderr
+
+
+# ---------------------------------------------------------------------------
+# Public URL is reflected in OAuth metadata
+# ---------------------------------------------------------------------------
+
+
+def test_public_url_sets_issuer():
+    """SNAPTRADE_PUBLIC_URL is reflected in mcp.settings.auth.issuer_url."""
+    result = subprocess.run(
+        [sys.executable, "-c", "\n".join([
+            "import os",
+            'os.environ["SNAPTRADE_OAUTH_CLIENT_ID"] = "test-client"',
+            'os.environ["SNAPTRADE_OAUTH_CLIENT_SECRET"] = "test-secret"',
+            'os.environ["SNAPTRADE_OAUTH_REDIRECT_URI"] = "https://example.com/cb"',
+            'os.environ["SNAPTRADE_PUBLIC_URL"] = "https://my-tunnel.ngrok-free.app"',
+            "from snaptrade_mcp.server import mcp",
+            "print(str(mcp.settings.auth.issuer_url))",
+        ])],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+    assert "my-tunnel.ngrok-free.app" in result.stdout
+
+
+# ---------------------------------------------------------------------------
 # OAuth provider logic
 # ---------------------------------------------------------------------------
 
@@ -106,7 +150,7 @@ async def test_oauth_provider_accepts_valid_client():
     """SimpleOAuthProvider returns the pre-registered client for the correct client_id."""
     from snaptrade_mcp.oauth_provider import SimpleOAuthProvider
 
-    provider = SimpleOAuthProvider(client_id="test-client", client_secret="test-secret")
+    provider = SimpleOAuthProvider(client_id="test-client", client_secret="test-secret", redirect_uri="https://example.com/cb")
 
     client = await provider.get_client("test-client")
     assert client is not None
@@ -123,7 +167,7 @@ async def test_oauth_provider_full_auth_code_flow():
 
     from snaptrade_mcp.oauth_provider import SimpleOAuthProvider
 
-    provider = SimpleOAuthProvider(client_id="test-client", client_secret="test-secret")
+    provider = SimpleOAuthProvider(client_id="test-client", client_secret="test-secret", redirect_uri="https://chatgpt.com/callback")
     client = await provider.get_client("test-client")
     assert client is not None
 
@@ -157,3 +201,74 @@ async def test_oauth_provider_full_auth_code_flow():
     at = await provider.load_access_token(token.access_token)
     assert at is not None
     assert at.client_id == "test-client"
+
+
+@pytest.mark.anyio
+async def test_oauth_provider_redirect_uri_registered():
+    """SimpleOAuthProvider registers exactly the provided redirect URI."""
+    from snaptrade_mcp.oauth_provider import SimpleOAuthProvider
+
+    provider = SimpleOAuthProvider("client", "secret", "https://chatgpt.com/connector/oauth/abc")
+    client = await provider.get_client("client")
+    assert client is not None
+    assert client.redirect_uris is not None
+    assert len(client.redirect_uris) == 1
+    assert str(client.redirect_uris[0]) == "https://chatgpt.com/connector/oauth/abc"
+
+
+@pytest.mark.anyio
+async def test_oauth_provider_uses_client_secret_post():
+    """SimpleOAuthProvider registers with client_secret_post auth method."""
+    from snaptrade_mcp.oauth_provider import SimpleOAuthProvider
+
+    provider = SimpleOAuthProvider("client", "secret", "https://example.com/cb")
+    client = await provider.get_client("client")
+    assert client is not None
+    assert client.token_endpoint_auth_method == "client_secret_post"
+
+
+@pytest.mark.anyio
+async def test_oauth_provider_refresh_token_rotation():
+    """Refresh produces new tokens; old access token is revoked; old refresh is consumed."""
+    from pydantic import AnyUrl
+
+    from mcp.server.auth.provider import AuthorizationParams
+
+    from snaptrade_mcp.oauth_provider import SimpleOAuthProvider
+
+    provider = SimpleOAuthProvider("client", "secret", "https://example.com/cb")
+    client = await provider.get_client("client")
+    assert client is not None
+
+    params = AuthorizationParams(
+        state="s",
+        scopes=["read"],
+        code_challenge="c",
+        redirect_uri=AnyUrl("https://example.com/cb"),
+        redirect_uri_provided_explicitly=True,
+    )
+    redirect = await provider.authorize(client, params)
+    code = redirect.split("code=")[1].split("&")[0]
+    auth_code = await provider.load_authorization_code(client, code)
+    assert auth_code is not None
+    token = await provider.exchange_authorization_code(client, auth_code)
+
+    old_access = token.access_token
+    old_refresh = token.refresh_token
+    assert old_refresh is not None
+
+    rt = await provider.load_refresh_token(client, old_refresh)
+    assert rt is not None
+    new_token = await provider.exchange_refresh_token(client, rt, [])
+
+    assert new_token.access_token != old_access
+    assert new_token.refresh_token != old_refresh
+
+    # Old tokens are gone
+    assert await provider.load_access_token(old_access) is None
+    assert await provider.load_refresh_token(client, old_refresh) is None
+
+    # New tokens are valid
+    assert await provider.load_access_token(new_token.access_token) is not None
+    assert new_token.refresh_token is not None
+    assert await provider.load_refresh_token(client, new_token.refresh_token) is not None

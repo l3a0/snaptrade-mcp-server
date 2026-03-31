@@ -28,12 +28,12 @@ Three separate layers of credentials:
    - `SNAPTRADE_OAUTH_REDIRECT_URI` — the callback URL provided by your OAuth client
      at registration time (e.g. `https://chatgpt.com/connector/oauth/xxxx`). Required.
    - `SNAPTRADE_PUBLIC_URL` — the public-facing base URL (e.g. your ngrok URL) so
-     OAuth discovery metadata advertises reachable endpoints.
+     OAuth discovery metadata advertises reachable endpoints. Required.
 
 `_get_client()` reads app credentials from env vars.
-`_get_user()` reads user credentials from ~/.snaptrade/config.json only — it does
-not fall back to env vars. The integration test fixture bootstraps config.json from
-env vars if it doesn't exist (for CI runners).
+`_get_user()` reads user credentials from `CONFIG_PATH` (default `~/.snaptrade/config.json`).
+The integration test fixture patches `CONFIG_PATH` to a temp file so tests never
+touch the live config — keeping test and server credentials fully isolated.
 
 ## Security notes
 
@@ -56,8 +56,12 @@ env vars if it doesn't exist (for CI runners).
 Integration tests require real credentials against a paper trading account (e.g.
 Alpaca paper via SnapTrade). Never use real funded account credentials in tests.
 
-- Local: fill in tests/integration/.env (gitignored)
-- CI: set GitHub Actions Secrets; fixture bootstraps config.json automatically
+- Local: fill in `tests/integration/.env` (gitignored) — use the same app credentials
+  as `.env` (SNAPTRADE_CLIENT_ID / SNAPTRADE_CONSUMER_KEY must match the SnapTrade app
+  the test user is registered under)
+- CI: set GitHub Actions Secrets; fixture writes credentials to a temp file automatically
+- The fixture patches `CONFIG_PATH` to a temp file — running tests never modifies
+  `~/.snaptrade/config.json` or interferes with the live server
 - Run: `python -m pytest tests/integration/ -v`
 
 ## CI (GitHub Actions)

@@ -77,7 +77,7 @@ from snaptrade_mcp.snaptrade_client import SnapTrade
 _OAUTH_CLIENT_ID = os.environ.get("SNAPTRADE_OAUTH_CLIENT_ID")
 _OAUTH_CLIENT_SECRET = os.environ.get("SNAPTRADE_OAUTH_CLIENT_SECRET")
 _OAUTH_REDIRECT_URI = os.environ.get("SNAPTRADE_OAUTH_REDIRECT_URI")
-_PUBLIC_URL = os.environ.get("SNAPTRADE_PUBLIC_URL", "http://localhost:8000").rstrip("/")
+_PUBLIC_URL = (os.environ.get("SNAPTRADE_PUBLIC_URL") or "").rstrip("/")
 
 _oauth_provider = (
     SimpleOAuthProvider(_OAUTH_CLIENT_ID, _OAUTH_CLIENT_SECRET, _OAUTH_REDIRECT_URI)
@@ -613,7 +613,7 @@ def main():
     )
     parser.add_argument(
         "--transport",
-        choices=["stdio", "sse", "streamable-http"],
+        choices=["stdio", "streamable-http"],
         default="stdio",
         help="Transport protocol (default: stdio)",
     )
@@ -631,12 +631,16 @@ def main():
 
     args = parser.parse_args()
 
-    if args.transport in ("sse", "streamable-http") and not _oauth_provider:
+    if args.transport == "streamable-http" and not _oauth_provider:
         parser.error(
             "SNAPTRADE_OAUTH_CLIENT_ID, SNAPTRADE_OAUTH_CLIENT_SECRET, and "
-            "SNAPTRADE_OAUTH_REDIRECT_URI environment variables are required for HTTP "
-            "transports. Also set SNAPTRADE_PUBLIC_URL to the public-facing base URL "
-            "(e.g. your ngrok URL) if clients connect from outside localhost."
+            "SNAPTRADE_OAUTH_REDIRECT_URI environment variables are required for "
+            "streamable-http transport."
+        )
+    if args.transport == "streamable-http" and not _PUBLIC_URL:
+        parser.error(
+            "SNAPTRADE_PUBLIC_URL is required for streamable-http transport. "
+            "Set it to your public-facing base URL (e.g. https://abc123.ngrok-free.app)."
         )
 
     mcp.settings.host = args.host

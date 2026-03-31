@@ -49,6 +49,6 @@ snaptrade-mcp = "snaptrade_mcp.server:main"
 addopts = "--envfile=tests/integration/.env"
 
 [project.urls]
-Homepage = "https://github.com/micah63/snaptrade-mcp-server"
-Repository = "https://github.com/micah63/snaptrade-mcp-server"
-Issues = "https://github.com/micah63/snaptrade-mcp-server/issues"
+Homepage = "https://github.com/l3a0/snaptrade-mcp-server"
+Repository = "https://github.com/l3a0/snaptrade-mcp-server"
+Issues = "https://github.com/l3a0/snaptrade-mcp-server/issues"

@@ -60,7 +60,7 @@ This downloads and runs it in an isolated environment automatically.
 ### Option C: Install from source
 
 ```bash
-git clone https://github.com/micah63/snaptrade-mcp-server.git
+git clone https://github.com/l3a0/snaptrade-mcp-server.git
 cd snaptrade-mcp-server
 pip install .
 ```
@@ -168,7 +168,7 @@ set -a && source .env && set +a  # export all vars from .env to child processes
 snaptrade-mcp --transport streamable-http
 ```
 
-`SNAPTRADE_OAUTH_CLIENT_ID`, `SNAPTRADE_OAUTH_CLIENT_SECRET`, and `SNAPTRADE_OAUTH_REDIRECT_URI` are required. Set `SNAPTRADE_PUBLIC_URL` to your ngrok URL so OAuth discovery metadata advertises reachable endpoints.
+`SNAPTRADE_OAUTH_CLIENT_ID`, `SNAPTRADE_OAUTH_CLIENT_SECRET`, `SNAPTRADE_OAUTH_REDIRECT_URI`, and `SNAPTRADE_PUBLIC_URL` are all required. Set `SNAPTRADE_PUBLIC_URL` to your public-facing base URL (e.g. your ngrok URL) so OAuth discovery metadata advertises reachable endpoints.
 
 To customize the host or port:
 
