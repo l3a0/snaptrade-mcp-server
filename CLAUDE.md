@@ -12,19 +12,32 @@ positions, orders, and transactions — but cannot trade or modify accounts.
 
 ## Credential architecture
 
-Two separate layers of credentials:
+Three separate layers of credentials:
 
 1. **App credentials** (SNAPTRADE_CLIENT_ID, SNAPTRADE_CONSUMER_KEY) — set as env
-   vars in ~/.zshrc. Identify the MCP server application to SnapTrade.
+   vars (via `.env` file or shell profile). Identify the MCP server application to SnapTrade.
 
 2. **User credentials** (user_id, user_secret) — stored in ~/.snaptrade/config.json
    after running snaptrade_setup. Identify the specific brokerage user. The file is
    chmod 600 (owner read/write only).
 
+3. **Streamable HTTP transport credentials** — required when running with
+   `--transport streamable-http` (e.g. for ChatGPT). All four vars must be set
+   before the server starts; missing any one causes a clear startup error:
+   - `SNAPTRADE_OAUTH_CLIENT_ID` / `SNAPTRADE_OAUTH_CLIENT_SECRET` — credentials you
+     generate (for example with Python's `secrets` library) and enter into both
+     the ChatGPT connector and this server's environment.
+   - `SNAPTRADE_OAUTH_REDIRECT_URI` — the callback URL provided by your OAuth client
+     at registration time (e.g. `https://chatgpt.com/connector/oauth/xxxx`). Must be
+     a valid absolute `https://` URL. Required.
+   - `SNAPTRADE_PUBLIC_URL` — the public-facing base URL (e.g. your ngrok URL) so
+     OAuth discovery metadata advertises reachable endpoints. Must be a valid
+     absolute `https://` URL. Required.
+
 `_get_client()` reads app credentials from env vars.
-`_get_user()` reads user credentials from ~/.snaptrade/config.json only — it does
-not fall back to env vars. The integration test fixture bootstraps config.json from
-env vars if it doesn't exist (for CI runners).
+`_get_user()` reads user credentials from `CONFIG_PATH` (default `~/.snaptrade/config.json`).
+The integration test fixture patches `CONFIG_PATH` to a temp file so tests never
+touch the live config — keeping test and server credentials fully isolated.
 
 ## Security notes
 
@@ -34,6 +47,9 @@ env vars if it doesn't exist (for CI runners).
 - No audit logging exists — this is a known gap documented in server.py.
 - chmod 600 on config.json limits OS-level access but is not encryption.
 - Do not use inline command-line credential assignments (visible in `ps aux`).
+- PKCE is required for OAuth 2.0 code exchange (enforced by the MCP SDK).
+- DNS rebinding protection via `TransportSecuritySettings` when using ngrok.
+- OAuth tokens are in-memory only — lost on server restart; clients re-auth automatically.
 
 ## MCP primitives used
 
@@ -47,8 +63,12 @@ env vars if it doesn't exist (for CI runners).
 Integration tests require real credentials against a paper trading account (e.g.
 Alpaca paper via SnapTrade). Never use real funded account credentials in tests.
 
-- Local: fill in tests/integration/.env (gitignored)
-- CI: set GitHub Actions Secrets; fixture bootstraps config.json automatically
+- Local: fill in `tests/integration/.env` (gitignored) — use the same app credentials
+  as `.env` (SNAPTRADE_CLIENT_ID / SNAPTRADE_CONSUMER_KEY must match the SnapTrade app
+  the test user is registered under)
+- CI: set GitHub Actions Secrets; fixture writes credentials to a temp file automatically
+- The fixture patches `CONFIG_PATH` to a temp file — running tests never modifies
+  `~/.snaptrade/config.json` or interferes with the live server
 - Run: `python -m pytest tests/integration/ -v`
 
 ## CI (GitHub Actions)
@@ -65,4 +85,16 @@ credential theft via malicious PRs.
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
+```
+
+Copy `.env` (gitignored) and fill in credentials before running the server:
+
+```bash
+set -a && source .env && set +a  # export all vars from .env to child processes
+
+# STDIO transport (default) — for local clients (Claude Code, Cursor, etc.)
+snaptrade-mcp
+
+# Streamable HTTP transport — for remote clients (ChatGPT). Requires OAuth env vars + PUBLIC_URL.
+snaptrade-mcp --transport streamable-http
 ```

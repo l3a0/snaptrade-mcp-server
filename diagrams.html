@@ -229,6 +229,8 @@
   <a href="#error">Error Handling</a>
   <a href="#tools-map">Tool Dependency Map</a>
   <a href="#state">State Diagram</a>
+  <a href="#oauth-flow">OAuth Flow</a>
+  <a href="#transport">Transport Selection</a>
 </nav>
 
 <div class="container">
@@ -236,7 +238,7 @@
 <!-- TABLE OF CONTENTS -->
 <section id="toc">
   <h2>Table of Contents</h2>
-  <p>12 diagrams mapped to the 7-lesson plan.</p>
+  <p>14 diagrams mapped to the 7-lesson plan.</p>
   <table class="toc-table">
     <thead>
       <tr><th>#</th><th>Diagram</th><th>Lesson</th></tr>
@@ -249,11 +251,13 @@
       <tr><td>5</td><td><a href="#seq-tool">Sequence: Tool Call</a> — generic read tool lifecycle</td><td>4</td></tr>
       <tr><td>6</td><td><a href="#seq-setup">Sequence: Setup</a> — first-time registration &amp; brokerage auth</td><td>3</td></tr>
       <tr><td>7</td><td><a href="#seq-portfolio">Sequence: Portfolio Summary</a> — multi-account aggregation with error handling</td><td>4</td></tr>
-      <tr><td>8</td><td><a href="#auth">Auth Layer Diagram</a> — two-layer security model</td><td>3</td></tr>
+      <tr><td>8</td><td><a href="#auth">Auth Layer Diagram</a> — three-layer security model</td><td>3</td></tr>
       <tr><td>9</td><td><a href="#serialize">Serialization Pipeline</a> — <code>_serialize()</code> decision tree</td><td>5</td></tr>
       <tr><td>10</td><td><a href="#error">Error Handling Flow</a> — <code>_clean_error()</code> extraction logic</td><td>5</td></tr>
       <tr><td>11</td><td><a href="#tools-map">Tool Dependency Map</a> — which tools to call first, what depends on what</td><td>4</td></tr>
       <tr><td>12</td><td><a href="#state">State Diagram</a> — server lifecycle from unconfigured → ready → serving</td><td>7</td></tr>
+      <tr><td>13</td><td><a href="#oauth-flow">OAuth 2.0 Authorization Flow</a> — ChatGPT OAuth handshake sequence</td><td>3</td></tr>
+      <tr><td>14</td><td><a href="#transport">Transport Selection</a> — STDIO vs HTTP decision flowchart</td><td>7</td></tr>
     </tbody>
   </table>
 </section>
@@ -261,7 +265,7 @@
 <!-- LESSON PLAN -->
 <section id="lessons">
   <h2>Lesson Plan</h2>
-  <p>A Python MCP server providing read-only access to brokerage data via the SnapTrade API. ~500 lines total — 7 lessons to full understanding.</p>
+  <p>A compact Python MCP server providing read-only access to brokerage data via the SnapTrade API — 7 lessons to full understanding.</p>
 
   <div class="lesson-card">
     <h3>Lesson 1: Project Structure &amp; Setup</h3>
@@ -271,6 +275,8 @@
       <li><code>pyproject.toml</code> — dependencies, entry points, build config</li>
       <li><code>snaptrade_mcp/__init__.py</code> — version metadata</li>
       <li><code>snaptrade_mcp/__main__.py</code> — module entry point</li>
+      <li><code>snaptrade_mcp/oauth_provider.py</code> — in-memory OAuth 2.0 provider for Streamable HTTP transport</li>
+      <li><code>snaptrade_mcp/snaptrade_client.py</code> — SnapTrade SDK import wrapper</li>
     </ul>
     <h4>Key concepts</h4>
     <ul>
@@ -288,37 +294,40 @@
     <div class="goal">Understand how FastMCP works and how the server is initialized.</div>
     <h4>File</h4>
     <ul>
-      <li><code>snaptrade_mcp/server.py</code> (lines 1–30)</li>
+      <li><code>snaptrade_mcp/server.py</code> — top of file: imports, OAuth init, FastMCP setup</li>
     </ul>
     <h4>Key concepts</h4>
     <ul>
       <li><code>FastMCP</code> — simplified MCP server class</li>
-      <li>STDIO transport — server communicates via stdin/stdout (not HTTP)</li>
+      <li>STDIO transport (default) — server communicates via stdin/stdout; Streamable HTTP transport (`streamable-http`) — for remote clients like ChatGPT via OAuth 2.0</li>
       <li><code>@mcp.tool()</code> — decorator to register tools that AI agents can call</li>
       <li><code>@mcp.resource()</code> — decorator to expose static data endpoints</li>
       <li><code>@mcp.prompt()</code> — decorator for prompt templates</li>
-      <li><code>main()</code> calls <code>mcp.run()</code> to start the server</li>
+      <li><code>main()</code> parses <code>--transport</code>, <code>--host</code>, <code>--port</code> args and calls <code>mcp.run(transport=...)</code></li>
     </ul>
     <div class="diagram-links">Diagrams: <a href="#arch">1. Architecture</a> <a href="#components">2. Components</a> <a href="#class">3. Class/Module</a></div>
   </div>
 
   <div class="lesson-card">
     <h3>Lesson 3: Authentication &amp; Configuration</h3>
-    <div class="goal">Understand the two-layer auth model.</div>
-    <h4>File</h4>
+    <div class="goal">Understand the three-layer auth model.</div>
+    <h4>Files</h4>
     <ul>
-      <li><code>snaptrade_mcp/server.py</code> — <code>_get_client()</code> and <code>_get_user()</code> functions</li>
+      <li><code>snaptrade_mcp/server.py</code> — <code>_get_client()</code>, <code>_get_user()</code>, OAuth init, <code>AuthSettings</code>, <code>TransportSecuritySettings</code></li>
+      <li><code>snaptrade_mcp/oauth_provider.py</code> — <code>SimpleOAuthProvider</code> class (in-memory OAuth 2.0 server)</li>
     </ul>
     <h4>Key concepts</h4>
     <ul>
       <li><strong>Layer 1 — Developer credentials</strong> (env vars): <code>SNAPTRADE_CLIENT_ID</code> + <code>SNAPTRADE_CONSUMER_KEY</code></li>
       <li><strong>Layer 2 — User credentials</strong> (local file): <code>~/.snaptrade/config.json</code> with <code>user_id</code> + <code>user_secret</code></li>
+      <li><strong>Layer 3 — OAuth credentials</strong> (env vars, Streamable HTTP only): <code>SNAPTRADE_OAUTH_CLIENT_ID</code>, <code>SNAPTRADE_OAUTH_CLIENT_SECRET</code>, <code>SNAPTRADE_OAUTH_REDIRECT_URI</code>, <code>SNAPTRADE_PUBLIC_URL</code></li>
       <li><code>_get_client()</code> reads env vars and creates a <code>SnapTrade</code> SDK instance</li>
       <li><code>_get_user()</code> reads the local config file</li>
+      <li><code>SimpleOAuthProvider</code> handles OAuth 2.0 auth code flow with PKCE, auto-approve, token rotation</li>
       <li><code>snaptrade_setup()</code> tool creates user credentials on first run and generates a brokerage auth URL</li>
-      <li>Security: config file created with <code>chmod 600</code>, credentials never exposed in tool responses</li>
+      <li>Security: config file is <code>chmod 600</code>, PKCE required, DNS rebinding protection via <code>TransportSecuritySettings</code></li>
     </ul>
-    <div class="diagram-links">Diagrams: <a href="#seq-setup">6. Setup Sequence</a> <a href="#auth">8. Auth Layers</a></div>
+    <div class="diagram-links">Diagrams: <a href="#seq-setup">6. Setup Sequence</a> <a href="#auth">8. Auth Layers</a> <a href="#oauth-flow">13. OAuth Flow</a> <a href="#transport">14. Transport Selection</a></div>
   </div>
 
   <div class="lesson-card">
@@ -393,7 +402,8 @@
     <ul>
       <li>Get SnapTrade API credentials from <code>https://snaptrade.com</code></li>
       <li>Set env vars: <code>export SNAPTRADE_CLIENT_ID=... SNAPTRADE_CONSUMER_KEY=...</code></li>
-      <li>Run: <code>python -m snaptrade_mcp</code> (starts STDIO server)</li>
+      <li>STDIO mode: <code>python -m snaptrade_mcp</code> (default, for Claude/Cursor)</li>
+      <li>Streamable HTTP mode: <code>snaptrade-mcp --transport streamable-http</code> (requires OAuth env vars + <code>SNAPTRADE_PUBLIC_URL</code>)</li>
       <li>Or add to Claude Code: <code>claude mcp add snaptrade -s user -e SNAPTRADE_CLIENT_ID=... -e SNAPTRADE_CONSUMER_KEY=... -- snaptrade-mcp</code></li>
       <li>Test by asking Claude to call <code>snaptrade_check_status</code></li>
     </ul>
@@ -408,42 +418,53 @@
   <p>How the MCP server sits between AI clients and the SnapTrade API.</p>
   <pre class="mermaid">
 graph LR
-    subgraph AI Clients
+    subgraph "AI Clients (STDIO)"
         CC["Claude Code"]
         CD["Claude Desktop"]
         CU["Cursor / Windsurf"]
     end
 
+    subgraph "AI Clients (HTTP)"
+        GPT["ChatGPT"]
+    end
+
     subgraph MCP Server
-        FM["FastMCP<br/>(STDIO transport)"]
+        FM["FastMCP<br/>(STDIO or HTTP)"]
+        OA["SimpleOAuthProvider"]
         T["10 Tools"]
         R["2 Resources"]
         P["2 Prompts"]
     end
 
     subgraph External
+        NG["ngrok<br/>(tunnel)"]
         SA["SnapTrade API<br/>(REST)"]
         BR["Brokerages<br/>(Schwab, Fidelity, etc.)"]
     end
 
     subgraph Local Storage
         ENV["ENV VARS<br/>CLIENT_ID<br/>CONSUMER_KEY"]
+        OAUTH["OAUTH ENV VARS<br/>CLIENT_ID, SECRET,<br/>REDIRECT_URI, PUBLIC_URL"]
         CFG["~/.snaptrade/<br/>config.json"]
     end
 
     CC -- "STDIO" --> FM
     CD -- "STDIO" --> FM
     CU -- "STDIO" --> FM
+    GPT -- "HTTPS + OAuth" --> NG
+    NG --> FM
+    OA -.-> FM
     FM --> T
     FM --> R
     FM --> P
     T -- "HTTPS" --> SA
     SA -- "OAuth" --> BR
     ENV -.-> FM
+    OAUTH -.-> OA
     CFG -.-> FM
   </pre>
   <div class="legend">
-    <strong>Key:</strong> Solid arrows = data flow. Dotted arrows = config reads. The MCP server is a subprocess launched by the AI client, communicating over stdin/stdout (STDIO). It makes outbound HTTPS calls to the SnapTrade REST API.
+    <strong>Key:</strong> Solid arrows = data flow. Dotted arrows = config reads. <strong>STDIO transport</strong> (default): the server is a subprocess launched by local AI clients, communicating over stdin/stdout. <strong>Streamable HTTP transport</strong>: the server listens on a port and accepts OAuth 2.0-authenticated requests from remote clients like ChatGPT via an ngrok tunnel.
   </div>
 </section>
 
@@ -451,51 +472,68 @@ graph LR
 <section id="components">
   <h2>2. Component Diagram</h2>
   <span class="lesson-tag">Lesson 2</span>
-  <p>Internal structure of server.py — the only source file that matters.</p>
+  <p>Internal structure of the snaptrade_mcp package — server.py and oauth_provider.py.</p>
   <pre class="mermaid">
 graph TB
-    subgraph "server.py (466 lines)"
-        subgraph "Server Init (L1-31)"
-            MCP["FastMCP('snaptrade')"]
-            CP["CONFIG_PATH"]
+    subgraph "snaptrade_mcp package"
+        subgraph "oauth_provider.py"
+            OAP["SimpleOAuthProvider"]
+            AC["_auth_codes: dict"]
+            AT["_access_tokens: dict"]
+            RT["_refresh_tokens: dict"]
+            OAP --> AC & AT & RT
         end
 
-        subgraph "Helpers (L34-104)"
-            GC["_get_client()"]
-            GU["_get_user()"]
-            SER["_serialize()"]
-            FMT["_format_response()"]
-            CE["_clean_error()"]
-        end
+        subgraph "server.py"
+            subgraph "Server Init"
+                MCP["FastMCP('snaptrade')"]
+                CP["CONFIG_PATH"]
+                OPR["_oauth_provider"]
+                TSS["TransportSecuritySettings"]
+                AS["AuthSettings"]
+            end
 
-        subgraph "Tools (L112-405)"
-            T1["list_accounts"]
-            T2["get_balance"]
-            T3["get_positions"]
-            T4["get_orders"]
-            T5["get_activities"]
-            T6["portfolio_summary"]
-            T7["search_symbols"]
-            T8["list_brokerages"]
-            T9["check_status"]
-            T10["setup"]
-        end
+            subgraph "Helpers"
+                GC["_get_client()"]
+                GU["_get_user()"]
+                SER["_serialize()"]
+                FMT["_format_response()"]
+                CE["_clean_error()"]
+            end
 
-        subgraph "Resources (L413-420)"
-            R1["snaptrade://status"]
-            R2["snaptrade://brokerages"]
-        end
+            subgraph "Tools (10)"
+                T1["list_accounts"]
+                T2["get_balance"]
+                T3["get_positions"]
+                T4["get_orders"]
+                T5["get_activities"]
+                T6["portfolio_summary"]
+                T7["search_symbols"]
+                T8["list_brokerages"]
+                T9["check_status"]
+                T10["setup"]
+            end
 
-        subgraph "Prompts (L430-456)"
-            P1["analyze_portfolio"]
-            P2["account_summary"]
-        end
+            subgraph "Resources (2)"
+                R1["snaptrade://status"]
+                R2["snaptrade://brokerages"]
+            end
 
-        subgraph "Entry Point (L459-465)"
-            MAIN["main() → mcp.run()"]
+            subgraph "Prompts (2)"
+                P1["analyze_portfolio"]
+                P2["account_summary"]
+            end
+
+            subgraph "Entry Point"
+                MAIN["main() → argparse<br/>→ mcp.run(transport)"]
+            end
         end
     end
 
+    OAP --> OPR
+    OPR --> MCP
+    TSS --> MCP
+    AS --> MCP
     T1 --> GC & GU & FMT
     T6 --> GC & GU & FMT & CE
     R1 --> T9
@@ -504,6 +542,7 @@ graph TB
 
     style MCP fill:#dbeafe,color:#1e3a5f,stroke:#2563eb,stroke-width:2px
     style MAIN fill:#dbeafe,color:#1e3a5f,stroke:#2563eb,stroke-width:2px
+    style OAP fill:#ede9fe,color:#3b0764,stroke:#7c3aed,stroke-width:2px
   </pre>
 </section>
 
@@ -517,10 +556,38 @@ classDiagram
     class FastMCP {
         +name: str
         +instructions: str
+        +auth: AuthSettings
+        +auth_server_provider: SimpleOAuthProvider
+        +transport_security: TransportSecuritySettings
         +tool(fn) decorator
         +resource(uri) decorator
         +prompt(fn) decorator
-        +run() void
+        +run(transport) void
+    }
+
+    class SimpleOAuthProvider {
+        -_client: OAuthClientInformationFull
+        -_auth_codes: dict
+        -_access_tokens: dict
+        -_refresh_tokens: dict
+        +get_client(client_id) OAuthClientInformationFull
+        +authorize(client, params) str
+        +load_authorization_code(client, code) AuthorizationCode
+        +exchange_authorization_code(client, code) OAuthToken
+        +load_refresh_token(client, token) RefreshToken
+        +exchange_refresh_token(client, token, scopes) OAuthToken
+        +load_access_token(token) ServerAccessToken
+        +revoke_token(token) void
+    }
+
+    class AuthSettings {
+        +issuer_url: AnyHttpUrl
+        +resource_server_url: AnyHttpUrl
+    }
+
+    class TransportSecuritySettings {
+        +allowed_hosts: list
+        +allowed_origins: list
     }
 
     class SnapTrade {
@@ -562,18 +629,26 @@ classDiagram
     class EnvVars {
         +SNAPTRADE_CLIENT_ID: str
         +SNAPTRADE_CONSUMER_KEY: str
+        +SNAPTRADE_OAUTH_CLIENT_ID: str
+        +SNAPTRADE_OAUTH_CLIENT_SECRET: str
+        +SNAPTRADE_OAUTH_REDIRECT_URI: str
+        +SNAPTRADE_PUBLIC_URL: str
     }
 
     FastMCP --> Tool : registers 1 to 10
     FastMCP --> Resource : registers 1 to 2
     FastMCP --> Prompt : registers 1 to 2
+    FastMCP --> AuthSettings : configured with
+    FastMCP --> TransportSecuritySettings : configured with
+    FastMCP --> SimpleOAuthProvider : auth_server_provider
+    SimpleOAuthProvider ..> EnvVars : initialized from OAuth vars
     SnapTrade *-- AccountAPI
     SnapTrade *-- AuthAPI
     SnapTrade *-- ReferenceAPI
     SnapTrade *-- TxAPI
     Tool ..> SnapTrade : uses
     Tool ..> ConfigFile : reads
-    SnapTrade ..> EnvVars : initialized from
+    SnapTrade ..> EnvVars : initialized from app vars
   </pre>
 </section>
 
@@ -618,6 +693,13 @@ sequenceDiagram
     participant API as SnapTrade API
 
     AI->>MCP: tool_call("snaptrade_get_positions", {account_id})
+
+    alt Streamable HTTP Transport (streamable-http)
+        MCP->>MCP: SimpleOAuthProvider.load_access_token()
+        MCP->>MCP: Validate Bearer token not expired
+        Note over MCP: Token valid → proceed
+    end
+
     MCP->>ENV: Read CLIENT_ID, CONSUMER_KEY
     ENV-->>MCP: credentials
     MCP->>MCP: SnapTrade(consumer_key, client_id)
@@ -716,42 +798,54 @@ sequenceDiagram
 <section id="auth">
   <h2>8. Authentication Layer Diagram</h2>
   <span class="lesson-tag">Lesson 3</span>
-  <p>The two-layer security model: developer credentials + user credentials.</p>
+  <p>The three-layer security model: app credentials + user credentials + OAuth transport credentials (HTTP only).</p>
   <pre class="mermaid">
-graph TB
-    subgraph "Layer 1: Developer Auth"
-        ENV["Environment Variables"]
+graph LR
+    subgraph L1["Layer 1: SnapTrade App Auth"]
+        direction TB
         CID["SNAPTRADE_CLIENT_ID"]
         CK["SNAPTRADE_CONSUMER_KEY"]
-        ENV --> CID & CK
-        CID & CK --> CLIENT["SnapTrade Client Instance"]
+        CID & CK --> CLIENT["SnapTrade Client"]
     end
 
-    subgraph "Layer 2: User Auth"
+    subgraph L2["Layer 2: SnapTrade User Auth"]
+        direction TB
         CFG["~/.snaptrade/config.json<br/>(chmod 600)"]
-        UID["user_id<br/>(mcp-{uuid})"]
-        US["user_secret"]
-        CFG --> UID & US
+        CFG --> UID["user_id"]
+        CFG --> US["user_secret"]
     end
 
-    subgraph "Combined Auth → API Call"
-        CLIENT --> CALL["SDK Method Call"]
-        UID --> CALL
-        US --> CALL
-        CALL --> API["SnapTrade API"]
+    subgraph L3["Layer 3: OAuth 2.0 (HTTP only)"]
+        direction TB
+        OCID["SNAPTRADE_OAUTH_CLIENT_ID"]
+        OSEC["SNAPTRADE_OAUTH_CLIENT_SECRET"]
+        ORURI["SNAPTRADE_OAUTH_REDIRECT_URI"]
+        OPURL["SNAPTRADE_PUBLIC_URL"]
+        OCID & OSEC & ORURI --> OAP["SimpleOAuthProvider"]
+        OPURL --> AS["AuthSettings"]
+        OPURL --> TSS["TransportSecuritySettings"]
     end
 
-    subgraph "Security Properties"
-        S1["🔒 Read-only — no trading"]
-        S2["🔒 Credentials never in responses"]
-        S3["🔒 Config file is chmod 600"]
-        S4["🔒 Dev keys ≠ user keys"]
-    end
+    CLIENT --> CALL["SDK API Call"]
+    UID --> CALL
+    US --> CALL
+    CALL --> API["SnapTrade API"]
 
-    style ENV fill:#ffedd5,color:#7c2d12,stroke:#ea580c,stroke-width:2px
-    style CFG fill:#ede9fe,color:#3b0764,stroke:#7c3aed,stroke-width:2px
+    OAP --> BEARER["Bearer Token<br/>Validation"]
+    AS --> FM["FastMCP<br/>(HTTP)"]
+    TSS --> FM
+    BEARER --> FM
+
+    style L1 fill:#fff7ed,stroke:#ea580c,stroke-width:2px
+    style L2 fill:#f5f3ff,stroke:#7c3aed,stroke-width:2px
+    style L3 fill:#eff6ff,stroke:#2563eb,stroke-width:2px
     style API fill:#dcfce7,color:#14532d,stroke:#16a34a,stroke-width:2px
+    style FM fill:#dcfce7,color:#14532d,stroke:#16a34a,stroke-width:2px
   </pre>
+  <div class="legend">
+    <strong>Security properties:</strong> Read-only (no trading). Credentials never in responses. Config file is chmod 600. Dev keys ≠ user keys ≠ OAuth keys. PKCE required for code exchange. DNS rebinding protection via allowed_hosts.<br/>
+    <strong>Colors:</strong> <span style="color:#ea580c">Orange</span> = Layer 1 (app credentials). <span style="color:#7c3aed">Purple</span> = Layer 2 (user credentials). <span style="color:#2563eb">Blue</span> = Layer 3 (OAuth, HTTP only). <span style="color:#16a34a">Green</span> = outputs.
+  </div>
 </section>
 
 <!-- 9. SERIALIZATION PIPELINE -->
@@ -849,31 +943,148 @@ graph TD
 <section id="state">
   <h2>12. Server State Diagram</h2>
   <span class="lesson-tag">Lesson 7</span>
-  <p>The lifecycle states of the MCP server and user configuration.</p>
+  <p>The lifecycle states of the MCP server, transport selection, and user configuration.</p>
   <pre class="mermaid">
 stateDiagram-v2
     [*] --> Unconfigured: Server starts
 
-    Unconfigured --> NoEnvVars: ENV vars missing
-    Unconfigured --> NoUserConfig: ENV vars set,<br/>no config.json
+    Unconfigured --> NoEnvVars: App ENV vars missing
+    Unconfigured --> SelectTransport: App ENV vars set
 
     NoEnvVars --> Unconfigured: User sets ENV vars
+
+    state SelectTransport <<choice>>
+    SelectTransport --> STDIOPath: --transport stdio (default)
+    SelectTransport --> HTTPValidation: --transport streamable-http
+
+    HTTPValidation --> HTTPError: OAuth env vars or\nPUBLIC_URL missing
+    HTTPValidation --> HTTPPath: All OAuth vars +\nPUBLIC_URL set
+    HTTPError --> [*]: argparse error exit
+
+    STDIOPath --> NoUserConfig: No config.json
+    HTTPPath --> NoUserConfig: No config.json
+    STDIOPath --> Ready: Config exists
+    HTTPPath --> ReadyHTTP: Config exists
 
     NoUserConfig --> Registering: snaptrade_setup called
     Registering --> UserRegistered: API returns user_secret
     UserRegistered --> ConfigSaved: Write config.json<br/>(chmod 600)
     ConfigSaved --> AuthorizingBrokerage: Open browser<br/>redirect URL
 
-    AuthorizingBrokerage --> Ready: User authorizes<br/>brokerage
+    AuthorizingBrokerage --> Ready: User authorizes<br/>(STDIO mode)
+    AuthorizingBrokerage --> ReadyHTTP: User authorizes<br/>(HTTP mode)
     AuthorizingBrokerage --> ConfigSaved: User cancels
 
-    Ready --> ServingTools: Any tool called
+    Ready --> ServingTools: Tool called (STDIO)
     ServingTools --> Ready: Response returned
     ServingTools --> ErrorState: API error
     ErrorState --> Ready: Next call succeeds
 
+    ReadyHTTP --> ServingHTTP: Tool called with\nBearer token
+    ServingHTTP --> ReadyHTTP: Response returned
+    ServingHTTP --> TokenExpired: Access token expired
+    TokenExpired --> ReadyHTTP: Client refreshes token
+    ServingHTTP --> ErrorState: API error
+
     Ready --> [*]: Server process exits
+    ReadyHTTP --> [*]: Server process exits
   </pre>
+</section>
+
+<!-- 13. OAUTH 2.0 AUTHORIZATION FLOW -->
+<section id="oauth-flow">
+  <h2>13. OAuth 2.0 Authorization Flow</h2>
+  <span class="lesson-tag">Lesson 3</span>
+  <p>How ChatGPT authenticates with the MCP server via OAuth 2.0 (streamable-http transport).</p>
+  <pre class="mermaid">
+sequenceDiagram
+    participant GPT as ChatGPT
+    participant NG as ngrok
+    participant MCP as MCP Server
+    participant OA as SimpleOAuthProvider
+
+    Note over GPT,OA: Phase 1 — Discovery
+    GPT->>NG: GET /.well-known/oauth-authorization-server
+    NG->>MCP: forward
+    MCP-->>NG: OAuth metadata (endpoints, PKCE methods)
+    NG-->>GPT: OAuth server metadata
+
+    Note over GPT,OA: Phase 2 — Authorization
+    GPT->>NG: GET /authorize?client_id=...&redirect_uri=...&code_challenge=...&state=...
+    NG->>MCP: forward
+    MCP->>OA: authorize(client, params)
+    OA->>OA: Generate auth code (5-min expiry)
+    OA->>OA: Store code + code_challenge
+    OA-->>MCP: Redirect URL with ?code=...&state=...
+    MCP-->>NG: 302 Redirect
+    NG-->>GPT: Auth code via redirect
+
+    Note over GPT,OA: Phase 3 — Token Exchange
+    GPT->>NG: POST /token (code, code_verifier, client_id, client_secret)
+    NG->>MCP: forward
+    MCP->>OA: exchange_authorization_code()
+    OA->>OA: Validate code + PKCE verifier
+    OA->>OA: Generate access_token (1hr) + refresh_token
+    OA->>OA: Delete auth code (single-use)
+    OA-->>MCP: OAuthToken
+    MCP-->>NG: access_token, refresh_token, expires_in: 3600
+    NG-->>GPT: Tokens
+
+    Note over GPT,OA: Phase 4 — API Calls
+    GPT->>NG: POST /mcp + Authorization: Bearer token
+    NG->>MCP: forward
+    MCP->>OA: load_access_token(token)
+    OA-->>MCP: Valid (not expired)
+    MCP->>MCP: Execute tool (same path as STDIO)
+    MCP-->>NG: Tool result
+    NG-->>GPT: Response
+
+    Note over GPT,OA: Phase 5 — Token Refresh (after 1 hour)
+    GPT->>NG: POST /token (grant_type=refresh_token, refresh_token=...)
+    NG->>MCP: forward
+    MCP->>OA: exchange_refresh_token()
+    OA->>OA: Rotate both tokens, revoke old access token
+    OA-->>MCP: New OAuthToken
+    MCP-->>NG: New access_token + refresh_token
+    NG-->>GPT: Refreshed tokens
+  </pre>
+  <div class="legend">
+    <strong>Key:</strong> PKCE (Proof Key for Code Exchange) is enforced by the MCP SDK before code exchange. Auth codes are single-use with 5-minute expiry. Access tokens expire after 1 hour; refresh tokens are perpetual but rotated on each use. The server auto-approves authorization (no login form) — this is a single-user personal server.
+  </div>
+</section>
+
+<!-- 14. TRANSPORT SELECTION -->
+<section id="transport">
+  <h2>14. Transport Selection</h2>
+  <span class="lesson-tag">Lesson 7</span>
+  <p>How the server chooses between STDIO and Streamable HTTP transport based on CLI args and environment.</p>
+  <pre class="mermaid">
+flowchart TD
+    START["snaptrade-mcp CLI invoked"] --> PARSE["argparse reads<br/>--transport, --host, --port"]
+    PARSE --> CHOICE{"--transport?"}
+
+    CHOICE -- "stdio (default)" --> STDIO_CHECK["Skip OAuth checks"]
+    STDIO_CHECK --> STDIO_RUN["mcp.run(transport='stdio')<br/>Communicates via stdin/stdout"]
+    STDIO_RUN --> CLIENTS_STDIO["Claude Code / Desktop / Cursor"]
+
+    CHOICE -- "streamable-http" --> CHECK_OAUTH{"OAUTH_CLIENT_ID,<br/>OAUTH_CLIENT_SECRET,<br/>OAUTH_REDIRECT_URI<br/>all set?"}
+    CHECK_OAUTH -- No --> ERR1["argparse error:<br/>OAuth env vars required"]
+    CHECK_OAUTH -- Yes --> CHECK_URL{"SNAPTRADE_PUBLIC_URL<br/>set?"}
+    CHECK_URL -- No --> ERR2["argparse error:<br/>PUBLIC_URL required"]
+    CHECK_URL -- Yes --> BUILD["Build:<br/>SimpleOAuthProvider<br/>AuthSettings<br/>TransportSecuritySettings"]
+    BUILD --> HTTP_RUN["mcp.run(transport='streamable-http')<br/>Listens on --host:--port"]
+    HTTP_RUN --> TUNNEL["ngrok tunnel<br/>to localhost:port"]
+    TUNNEL --> CLIENTS_HTTP["ChatGPT / remote clients"]
+
+    style START fill:#dbeafe,color:#1e3a5f,stroke:#2563eb,stroke-width:2px
+    style ERR1 fill:#fee2e2,color:#7f1d1d,stroke:#dc2626,stroke-width:2px
+    style ERR2 fill:#fee2e2,color:#7f1d1d,stroke:#dc2626,stroke-width:2px
+    style STDIO_RUN fill:#dcfce7,color:#14532d,stroke:#16a34a,stroke-width:2px
+    style HTTP_RUN fill:#dcfce7,color:#14532d,stroke:#16a34a,stroke-width:2px
+  </pre>
+  <div class="legend">
+    <strong>Key:</strong> STDIO is the default transport requiring no OAuth configuration. Streamable-HTTP requires all four OAuth environment variables plus a public URL (typically an ngrok tunnel). The OAuth provider, auth settings, and transport security settings are constructed at module import time from env vars, but only validated at startup when <code>--transport streamable-http</code> is selected.
+  </div>
 </section>
 
 </div>
@@ -893,6 +1104,34 @@ stateDiagram-v2
   // the width/height attributes so the SVG fills its container,
   // then set a large explicit width on the wrapper so it overflows.
   window.addEventListener('load', function() {
+    // Enlarge the auth diagram for readability
+    var authSection = document.getElementById('auth');
+    if (authSection) {
+      var svg = authSection.querySelector('svg');
+      if (svg) {
+        var wrapper = document.createElement('div');
+        wrapper.style.overflowX = 'auto';
+        wrapper.style.background = '#fff';
+        wrapper.style.borderRadius = '8px';
+        wrapper.style.padding = '1.5rem';
+
+        var inner = document.createElement('div');
+        inner.style.width = '1400px';
+        inner.style.minHeight = '400px';
+
+        svg.removeAttribute('width');
+        svg.removeAttribute('height');
+        svg.style.width = '100%';
+        svg.style.height = 'auto';
+        svg.removeAttribute('style');
+        svg.setAttribute('width', '1400');
+
+        svg.parentNode.insertBefore(wrapper, svg);
+        wrapper.appendChild(inner);
+        inner.appendChild(svg);
+      }
+    }
+
     var classSection = document.getElementById('class');
     if (classSection) {
       var svg = classSection.querySelector('svg');
@@ -904,7 +1143,7 @@ stateDiagram-v2
         wrapper.style.padding = '1.5rem';
 
         var inner = document.createElement('div');
-        inner.style.width = '1800px';
+        inner.style.width = '2200px';
         inner.style.minHeight = '600px';
 
         svg.removeAttribute('width');
@@ -912,7 +1151,7 @@ stateDiagram-v2
         svg.style.width = '100%';
         svg.style.height = 'auto';
         svg.removeAttribute('style');
-        svg.setAttribute('width', '1800');
+        svg.setAttribute('width', '2200');
 
         svg.parentNode.insertBefore(wrapper, svg);
         wrapper.appendChild(inner);

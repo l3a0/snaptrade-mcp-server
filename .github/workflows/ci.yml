@@ -61,7 +61,7 @@ jobs:
       # from forks, preventing credential theft via malicious PRs. For PRs from
       # the same repo, secrets are available and these tests will run.
       #
-      # The test fixture (require_credentials in test_api.py) bootstraps
+      # The test fixture (require_credentials in tests/integration/test_api.py) bootstraps
       # ~/.snaptrade/config.json from SNAPTRADE_USER_ID and SNAPTRADE_USER_SECRET
       # if the file doesn't exist — so CI runners work without a prior setup step.
       - name: Integration tests

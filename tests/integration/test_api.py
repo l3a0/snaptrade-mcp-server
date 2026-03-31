@@ -13,6 +13,9 @@ These tests are read-only and will not modify any account data.
 
 import json
 import os
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -21,6 +24,7 @@ from snaptrade_mcp.server import (
     snaptrade_list_accounts,
     snaptrade_list_brokerages,
     snaptrade_portfolio_summary,
+    snaptrade_setup,
 )
 
 _REQUIRED_ENV_VARS = [
@@ -32,10 +36,12 @@ _REQUIRED_ENV_VARS = [
 
 
 @pytest.fixture(autouse=True, scope="session")
-def require_credentials() -> None:
+def require_credentials():
     """Fail the test session if any required credential env vars are missing.
-    If they are set, bootstrap ~/.snaptrade/config.json from them so _get_user()
-    can find the credentials without requiring a prior snaptrade_setup run.
+
+    Writes credentials to a temp file and patches CONFIG_PATH in server.py so
+    tests never touch ~/.snaptrade/config.json — keeping test credentials
+    isolated from the config used to run the live server.
 
     autouse=True means this fixture runs automatically for every test in this
     file without needing to be explicitly requested. scope="session" means it
@@ -45,17 +51,23 @@ def require_credentials() -> None:
     if missing:
         pytest.fail(f"Missing required environment variables: {', '.join(missing)}")
 
-    # Bootstrap config.json from env vars if it doesn't already exist.
-    # This allows CI runners (which have no local config file) to authenticate.
-    config_path = os.path.expanduser("~/.snaptrade/config.json")
-    if not os.path.exists(config_path):
-        os.makedirs(os.path.dirname(config_path), exist_ok=True)
-        with open(config_path, "w") as f:
-            json.dump({
-                "user_id": os.environ["SNAPTRADE_USER_ID"],
-                "user_secret": os.environ["SNAPTRADE_USER_SECRET"],
-            }, f)
-        os.chmod(config_path, 0o600)
+    # Write credentials to a temp file — never touches ~/.snaptrade/config.json.
+    tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
+    json.dump({
+        "user_id": os.environ["SNAPTRADE_USER_ID"],
+        "user_secret": os.environ["SNAPTRADE_USER_SECRET"],
+    }, tmp)
+    tmp.close()
+    os.chmod(tmp.name, 0o600)
+
+    # Pytest fixtures treat code before `yield` as setup and code after it as
+    # teardown. Staying inside this `with` keeps CONFIG_PATH patched for the
+    # entire test, then restores the original value when the test finishes.
+    with patch("snaptrade_mcp.server.CONFIG_PATH", Path(tmp.name)):
+        yield
+
+    # Remove the temporary config file after the patch has been undone.
+    os.unlink(tmp.name)
 
 
 def test_check_status_returns_valid() -> None:
@@ -81,3 +93,9 @@ def test_portfolio_summary_structure() -> None:
     result = json.loads(snaptrade_portfolio_summary())
     # Either returns a portfolio list or a no-accounts message
     assert "portfolio" in result or "message" in result
+
+
+def test_setup_returns_status() -> None:
+    """snaptrade_setup opens a browser locally and returns a status field."""
+    result = json.loads(snaptrade_setup())
+    assert "status" in result

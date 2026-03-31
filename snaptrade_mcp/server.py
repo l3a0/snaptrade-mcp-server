@@ -2,8 +2,9 @@
 SnapTrade MCP Server — read-only brokerage data for AI agents.
 
 Exposes 10 tools, 2 resources, and 2 prompt templates via the Model Context
-Protocol. Works with Claude Code, Claude Desktop, Cursor, Windsurf, and any
-other MCP-compatible client.
+Protocol. Supports two transport modes: STDIO (default, for local clients like
+Claude Code and Cursor) and streamable-http (for remote clients like ChatGPT,
+with OAuth 2.0 authentication). Works with any MCP-compatible client.
 
 All tools are read-only. No trading, no account modification, no credential
 exposure. Safe by design.
@@ -62,18 +63,61 @@ import webbrowser
 from pathlib import Path
 from typing import Any
 
+from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
+from pydantic import AnyHttpUrl
 
+from snaptrade_mcp.oauth_provider import SimpleOAuthProvider
 from snaptrade_mcp.snaptrade_client import SnapTrade
 
 # ---------------------------------------------------------------------------
 # Server setup
 # ---------------------------------------------------------------------------
 
+_OAUTH_CLIENT_ID = os.environ.get("SNAPTRADE_OAUTH_CLIENT_ID")
+_OAUTH_CLIENT_SECRET = os.environ.get("SNAPTRADE_OAUTH_CLIENT_SECRET")
+_OAUTH_REDIRECT_URI = os.environ.get("SNAPTRADE_OAUTH_REDIRECT_URI")
+# Empty string when unset — a None default would crash AnyHttpUrl() at import time
+# before main() can emit a clean error. Validated in main() for streamable-http.
+_PUBLIC_URL = (os.environ.get("SNAPTRADE_PUBLIC_URL") or "").rstrip("/")
+
+_oauth_provider = (
+    SimpleOAuthProvider(_OAUTH_CLIENT_ID, _OAUTH_CLIENT_SECRET, _OAUTH_REDIRECT_URI)
+    if _OAUTH_CLIENT_ID and _OAUTH_CLIENT_SECRET and _OAUTH_REDIRECT_URI
+    else None
+)
+
+# Add the ngrok host to the DNS rebinding allowlist so the MCP SDK's host-header
+# validation doesn't reject proxied requests. Both _oauth_provider and _PUBLIC_URL
+# must be set — if PUBLIC_URL is empty, AnyHttpUrl("") raises a ValidationError at
+# import time before main() can emit a clean argparse error.
+_public_host = AnyHttpUrl(_PUBLIC_URL).host if _oauth_provider and _PUBLIC_URL else None
+_transport_security = (
+    TransportSecuritySettings(
+        allowed_hosts=["127.0.0.1:*", "localhost:*", _public_host],
+        allowed_origins=[_PUBLIC_URL, "http://127.0.0.1:*", "http://localhost:*"],
+    )
+    if _public_host and _public_host not in ("127.0.0.1", "localhost")
+    else None
+)
+
+# auth= and auth_server_provider= are both gated on _PUBLIC_URL being non-empty.
+# FastMCP raises if auth_server_provider is set without auth settings, so they
+# must be kept in sync. The _PUBLIC_URL guard also prevents AnyHttpUrl("") from
+# crashing at import time — main() handles the missing-URL error cleanly instead.
 mcp = FastMCP(
     "snaptrade",
     instructions="Read-only access to brokerage accounts via SnapTrade. "
     "View balances, positions, orders, and transactions across any connected brokerage.",
+    auth=AuthSettings(
+        issuer_url=AnyHttpUrl(_PUBLIC_URL),
+        resource_server_url=AnyHttpUrl(f"{_PUBLIC_URL}/mcp"),
+    )
+    if _oauth_provider and _PUBLIC_URL
+    else None,
+    auth_server_provider=_oauth_provider if _PUBLIC_URL else None,
+    transport_security=_transport_security,
 )
 
 CONFIG_PATH = Path.home() / ".snaptrade" / "config.json"
@@ -519,7 +563,7 @@ def snaptrade_setup() -> str:
 # snaptrade_check_status and snaptrade_list_brokerages are NOT good resources
 # because their data can change (API status, supported brokerages). They are
 # already exposed as tools above, which is the correct primitive for dynamic
-# data. Resources are best for things like user documentation or fixed configs.
+# data. Kept here for learning purposes — see CLAUDE.md "MCP primitives used".
 
 
 @mcp.resource("snaptrade://status")
@@ -570,7 +614,47 @@ def account_summary() -> str:
 
 def main():
     """Entry point for the snaptrade-mcp console script."""
-    mcp.run()
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        prog="snaptrade-mcp",
+        description="SnapTrade MCP Server — read-only brokerage data for AI agents.",
+    )
+    parser.add_argument(
+        "--transport",
+        choices=["stdio", "streamable-http"],
+        default="stdio",
+        help="Transport protocol (default: stdio)",
+    )
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Host to bind to for streamable-http transport (default: 127.0.0.1)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=8000,
+        help="Port to bind to for streamable-http transport (default: 8000)",
+    )
+
+    args = parser.parse_args()
+
+    if args.transport == "streamable-http" and not _oauth_provider:
+        parser.error(
+            "SNAPTRADE_OAUTH_CLIENT_ID, SNAPTRADE_OAUTH_CLIENT_SECRET, and "
+            "SNAPTRADE_OAUTH_REDIRECT_URI environment variables are required for "
+            "streamable-http transport."
+        )
+    if args.transport == "streamable-http" and not _PUBLIC_URL:
+        parser.error(
+            "SNAPTRADE_PUBLIC_URL is required for streamable-http transport. "
+            "Set it to your public-facing base URL (e.g. https://abc123.ngrok-free.app)."
+        )
+
+    mcp.settings.host = args.host
+    mcp.settings.port = args.port
+    mcp.run(transport=args.transport)
 
 
 if __name__ == "__main__":

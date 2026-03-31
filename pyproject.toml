@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "snaptrade-mcp"
 version = "0.1.0"
 description = "Read-only MCP server for brokerage data via SnapTrade"
-readme = "snaptrade_mcp/README.md"
+readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [
@@ -49,6 +49,6 @@ snaptrade-mcp = "snaptrade_mcp.server:main"
 addopts = "--envfile=tests/integration/.env"
 
 [project.urls]
-Homepage = "https://github.com/micah63/snaptrade-mcp-server"
-Repository = "https://github.com/micah63/snaptrade-mcp-server"
-Issues = "https://github.com/micah63/snaptrade-mcp-server/issues"
+Homepage = "https://github.com/l3a0/snaptrade-mcp-server"
+Repository = "https://github.com/l3a0/snaptrade-mcp-server"
+Issues = "https://github.com/l3a0/snaptrade-mcp-server/issues"
