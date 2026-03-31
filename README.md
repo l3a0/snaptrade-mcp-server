@@ -140,23 +140,32 @@ ngrok http 8000
 # note the forwarding URL, e.g. https://abc123.ngrok-free.app
 ```
 
-**Step 2 — create a connector** in ChatGPT (requires Pro, Team, Enterprise, or Edu):
+**Step 2 — generate an OAuth client ID and secret** you will use for this connector:
+
+```bash
+python -c "import secrets; print('client_id=' + secrets.token_urlsafe(24)); print('client_secret=' + secrets.token_urlsafe(48))"
+```
+
+Save both values. You will use the same client ID and secret in ChatGPT and in your `.env` file below.
+
+**Step 3 — create a connector** in ChatGPT (requires Pro, Team, Enterprise, or Edu):
 
 1. Go to **Settings → Connectors** and click **New Connector**
 2. Set the **MCP Server URL** to `https://abc123.ngrok-free.app/mcp`
 3. Set **Authentication** to **OAuth** and note the **Callback URL** shown (e.g. `https://chatgpt.com/connector/oauth/xxxx`)
-4. Choose **Token endpoint auth method**: `client_secret_post`
-5. Click **Create**
+4. Fill in the OAuth client ID and secret fields with the values you generated in Step 2
+5. Choose **Token endpoint auth method**: `client_secret_post`
+6. Click **Create**
 
-**Step 3 — start the server** with the credentials you chose and the callback URL from step 2.
+**Step 4 — start the server** with the same client ID and secret plus the callback URL from Step 3.
 
 Fill in your `.env` file:
 
 ```bash
 SNAPTRADE_CLIENT_ID=your_client_id
 SNAPTRADE_CONSUMER_KEY=your_consumer_key
-SNAPTRADE_OAUTH_CLIENT_ID=your-client-id
-SNAPTRADE_OAUTH_CLIENT_SECRET=your-client-secret
+SNAPTRADE_OAUTH_CLIENT_ID=paste-the-client-id-from-step-2
+SNAPTRADE_OAUTH_CLIENT_SECRET=paste-the-client-secret-from-step-2
 SNAPTRADE_OAUTH_REDIRECT_URI=https://chatgpt.com/connector/oauth/xxxx
 SNAPTRADE_PUBLIC_URL=https://abc123.ngrok-free.app
 ```
@@ -168,7 +177,7 @@ set -a && source .env && set +a  # export all vars from .env to child processes
 snaptrade-mcp --transport streamable-http
 ```
 
-All four OAuth environment variables are required for streamable-http transport. Set `SNAPTRADE_OAUTH_REDIRECT_URI` to the Callback URL from Step 2 above (e.g. `https://chatgpt.com/connector/oauth/xxxx`). Set `SNAPTRADE_PUBLIC_URL` to your public-facing base URL (e.g. your ngrok URL) so OAuth discovery metadata advertises reachable endpoints.
+All four OAuth environment variables are required for streamable-http transport. Set `SNAPTRADE_OAUTH_CLIENT_ID` and `SNAPTRADE_OAUTH_CLIENT_SECRET` to the exact values you generated in Step 2 and entered into the ChatGPT connector. Set `SNAPTRADE_OAUTH_REDIRECT_URI` to the Callback URL from Step 3 above (e.g. `https://chatgpt.com/connector/oauth/xxxx`). Set `SNAPTRADE_PUBLIC_URL` to your public-facing base URL (e.g. your ngrok URL) so OAuth discovery metadata advertises reachable endpoints.
 
 To customize the host or port:
 
@@ -212,9 +221,9 @@ This calls `snaptrade_setup`, which opens a browser window **on the machine runn
 ### "OAuth env vars required" / "PUBLIC_URL required" error
 
 - These errors occur when using `--transport streamable-http` without the required OAuth environment variables. All four must be set:
-  - `SNAPTRADE_OAUTH_CLIENT_ID` — a client ID you choose for the OAuth connector
-  - `SNAPTRADE_OAUTH_CLIENT_SECRET` — a client secret you choose
-  - `SNAPTRADE_OAUTH_REDIRECT_URI` — the Callback URL from your ChatGPT connector (Step 2 above)
+  - `SNAPTRADE_OAUTH_CLIENT_ID` — the client ID you generated and entered into the ChatGPT connector
+  - `SNAPTRADE_OAUTH_CLIENT_SECRET` — the matching client secret you generated and entered into the ChatGPT connector
+  - `SNAPTRADE_OAUTH_REDIRECT_URI` — the Callback URL from your ChatGPT connector (Step 3 above)
   - `SNAPTRADE_PUBLIC_URL` — your public-facing base URL (e.g. your ngrok forwarding URL)
 
 ## Security

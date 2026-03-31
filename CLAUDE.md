@@ -25,7 +25,8 @@ Three separate layers of credentials:
    `--transport streamable-http` (e.g. for ChatGPT). All four vars must be set
    before the server starts; missing any one causes a clear startup error:
    - `SNAPTRADE_OAUTH_CLIENT_ID` / `SNAPTRADE_OAUTH_CLIENT_SECRET` — credentials you
-     choose; they identify the OAuth client (ChatGPT) to this server.
+     generate (for example with Python's `secrets` library) and enter into both
+     the ChatGPT connector and this server's environment.
    - `SNAPTRADE_OAUTH_REDIRECT_URI` — the callback URL provided by your OAuth client
      at registration time (e.g. `https://chatgpt.com/connector/oauth/xxxx`). Required.
    - `SNAPTRADE_PUBLIC_URL` — the public-facing base URL (e.g. your ngrok URL) so
