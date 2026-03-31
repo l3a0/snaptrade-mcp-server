@@ -60,9 +60,13 @@ def require_credentials():
     tmp.close()
     os.chmod(tmp.name, 0o600)
 
+    # Pytest fixtures treat code before `yield` as setup and code after it as
+    # teardown. Staying inside this `with` keeps CONFIG_PATH patched for the
+    # entire test, then restores the original value when the test finishes.
     with patch("snaptrade_mcp.server.CONFIG_PATH", Path(tmp.name)):
         yield
 
+    # Remove the temporary config file after the patch has been undone.
     os.unlink(tmp.name)
 
 
