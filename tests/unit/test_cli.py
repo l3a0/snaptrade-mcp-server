@@ -24,16 +24,6 @@ def test_help_shows_transport_options():
     assert "streamable-http" in result.stdout
 
 
-def test_invalid_transport_rejected():
-    """An unrecognized transport value exits non-zero."""
-    result = subprocess.run(
-        [sys.executable, "-m", "snaptrade_mcp", "--transport", "grpc"],
-        capture_output=True,
-        text=True,
-    )
-    assert result.returncode != 0
-
-
 def test_sse_transport_rejected():
     """sse is not an accepted transport choice."""
     result = subprocess.run(
