@@ -150,12 +150,23 @@ Save both values. You will use the same client ID and secret in ChatGPT and in y
 
 **Step 3 — create a connector** in ChatGPT (requires Pro, Team, Enterprise, or Edu):
 
-1. Go to **Settings → Connectors** and click **New Connector**
+1. Go to **Settings → Apps**, enable **Developer Mode**, and click **Create app**
+
+   ![ChatGPT Developer Mode](images/chatgpt-developer-mode.png)
+
 2. Set the **MCP Server URL** to `https://abc123.ngrok-free.app/mcp`
 3. Set **Authentication** to **OAuth** and note the **Callback URL** shown (e.g. `https://chatgpt.com/connector/oauth/xxxx`)
-4. Fill in the OAuth client ID and secret fields with the values you generated in Step 2
-5. Choose **Token endpoint auth method**: `client_secret_post`
-6. Click **Create**
+4. Expand **Advanced settings** and set **Registration method** to `User-Defined OAuth Client`
+5. Fill in the OAuth client ID and secret fields with the values you generated in Step 2
+6. Choose **Token endpoint auth method**: `client_secret_post`
+
+   ![ChatGPT OAuth settings](images/chatgpt-oauth-settings.png)
+
+7. Confirm the OAuth endpoints were auto-discovered from your server — they should all show your ngrok hostname
+
+   ![ChatGPT OAuth endpoints auto-discovered](images/chatgpt-oauth-endpoints.png)
+
+8. Click **Create**
 
 **Step 4 — start the server** with the same client ID and secret plus the callback URL from Step 3.
 
