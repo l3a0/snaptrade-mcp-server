@@ -5,10 +5,18 @@ permissions:
 # Triggers:
 #   pull_request — runs on every PR opened, updated, or reopened (any branch)
 #   push to main — runs after a merge to catch any issues on the main branch
+#   schedule    — runs daily at 13:00 UTC (~06:00 PT / 09:00 ET) so the
+#                 integration tests catch SnapTrade API regressions even on
+#                 days with no commits. Cron uses UTC and only fires on the
+#                 default branch.
+#   workflow_dispatch — lets us trigger a manual run from the Actions tab.
 on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    - cron: "0 13 * * *"
+  workflow_dispatch:
 
 jobs:
   check:
