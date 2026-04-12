@@ -2,12 +2,19 @@
 
 import json
 from pathlib import Path
+from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
 
 import snaptrade_mcp.server as server
-from snaptrade_mcp.server import snaptrade_setup
+from snaptrade_mcp.server import (
+    snaptrade_get_option_positions,
+    snaptrade_get_option_strategy_quote,
+    snaptrade_get_options_chain,
+    snaptrade_portfolio_summary,
+    snaptrade_setup,
+)
 
 
 def test_snaptrade_setup_opens_browser_locally(tmp_path: Path) -> None:
@@ -127,3 +134,149 @@ def test_snaptrade_setup_reuses_existing_config(tmp_path: Path) -> None:
     )
     open_browser.assert_called_once_with("https://example.com/connect")
     assert result["status"] == "opened"
+
+
+# ---------------------------------------------------------------------------
+# Options tools
+# ---------------------------------------------------------------------------
+
+
+def _patch_creds(fake_client: Mock):
+    """Patch _get_client and _get_user with a fake client and static creds."""
+    return (
+        patch("snaptrade_mcp.server._get_client", return_value=(fake_client, "app-id")),
+        patch("snaptrade_mcp.server._get_user", return_value=("uid", "usecret")),
+    )
+
+
+def test_snaptrade_get_option_positions_calls_sdk() -> None:
+    fake_client = Mock()
+    fake_client.options.list_option_holdings.return_value = [
+        {"symbol": {"option_symbol": {"ticker": "AAPL240119C00150000"}}, "units": 2},
+    ]
+
+    client_patch, user_patch = _patch_creds(fake_client)
+    with client_patch, user_patch:
+        result = json.loads(snaptrade_get_option_positions(account_id="acct-1"))
+
+    fake_client.options.list_option_holdings.assert_called_once_with(
+        user_id="uid", user_secret="usecret", account_id="acct-1",
+    )
+    assert result["account_id"] == "acct-1"
+    assert isinstance(result["option_positions"], list)
+    assert result["option_positions"][0]["units"] == 2
+
+
+def test_snaptrade_get_options_chain_calls_sdk() -> None:
+    fake_client = Mock()
+    fake_client.options.get_options_chain.return_value = [
+        {"expiryDate": "2024-01-19", "chainPerRoot": []},
+    ]
+
+    client_patch, user_patch = _patch_creds(fake_client)
+    with client_patch, user_patch:
+        result = json.loads(snaptrade_get_options_chain(account_id="acct-1", symbol="sym-uuid"))
+
+    fake_client.options.get_options_chain.assert_called_once_with(
+        user_id="uid", user_secret="usecret", account_id="acct-1", symbol="sym-uuid",
+    )
+    assert result["account_id"] == "acct-1"
+    assert result["symbol"] == "sym-uuid"
+    assert "chain" in result
+
+
+def test_snaptrade_get_option_strategy_quote_chains_sdk_calls() -> None:
+    fake_client = Mock()
+    fake_client.options.get_option_strategy.return_value = {
+        "id": "strat-123",
+        "strategy_type": "SINGLE",
+        "number_of_legs": 1,
+    }
+    fake_client.options.get_options_strategy_quote.return_value = {
+        "bid_price": 1.25,
+        "ask_price": 1.30,
+        "volatility": 0.42,
+        "greek": {"delta": 0.55, "gamma": 0.02, "theta": -0.05, "vega": 0.11, "rho": 0.03},
+    }
+
+    legs: list[dict[str, Any]] = [{"action": "BUY", "option_symbol_id": "leg-uuid", "quantity": 1}]
+    client_patch, user_patch = _patch_creds(fake_client)
+    with client_patch, user_patch:
+        result = json.loads(snaptrade_get_option_strategy_quote(
+            account_id="acct-1",
+            legs=legs,
+            strategy_type="SINGLE",
+            underlying_symbol_id="under-uuid",
+        ))
+
+    fake_client.options.get_option_strategy.assert_called_once_with(
+        account_id="acct-1",
+        user_id="uid",
+        user_secret="usecret",
+        underlying_symbol_id="under-uuid",
+        legs=legs,
+        strategy_type="SINGLE",
+    )
+    fake_client.options.get_options_strategy_quote.assert_called_once_with(
+        account_id="acct-1",
+        option_strategy_id="strat-123",
+        user_id="uid",
+        user_secret="usecret",
+    )
+    assert result["strategy"]["id"] == "strat-123"
+    assert result["quote"]["greek"]["delta"] == 0.55
+    assert result["quote"]["bid_price"] == 1.25
+
+
+def test_snaptrade_get_option_strategy_quote_handles_missing_id() -> None:
+    fake_client = Mock()
+    fake_client.options.get_option_strategy.return_value = {"strategy_type": "SINGLE"}
+
+    client_patch, user_patch = _patch_creds(fake_client)
+    with client_patch, user_patch:
+        result = json.loads(snaptrade_get_option_strategy_quote(
+            account_id="acct-1",
+            legs=[{"action": "BUY", "option_symbol_id": "leg-uuid", "quantity": 1}],
+        ))
+
+    fake_client.options.get_options_strategy_quote.assert_not_called()
+    assert "error" in result
+
+
+def test_portfolio_summary_includes_option_positions() -> None:
+    fake_client = Mock()
+    fake_client.account_information.list_user_accounts.return_value = [
+        {"id": "acct-1", "name": "Paper", "institution_name": "Alpaca", "type": "margin"},
+    ]
+    fake_client.account_information.get_user_account_balance.return_value = {"cash": 1000}
+    fake_client.account_information.get_user_account_positions.return_value = []
+    fake_client.options.list_option_holdings.return_value = [
+        {"symbol": {"option_symbol": {"ticker": "AAPL240119C00150000"}}, "units": 1},
+    ]
+
+    client_patch, user_patch = _patch_creds(fake_client)
+    with client_patch, user_patch:
+        result = json.loads(snaptrade_portfolio_summary())
+
+    entry = result["portfolio"][0]
+    assert "option_positions" in entry
+    assert isinstance(entry["option_positions"], list)
+    assert entry["option_positions"][0]["units"] == 1
+
+
+def test_portfolio_summary_handles_options_error() -> None:
+    fake_client = Mock()
+    fake_client.account_information.list_user_accounts.return_value = [
+        {"id": "acct-1", "name": "Paper", "institution_name": "Alpaca", "type": "margin"},
+    ]
+    fake_client.account_information.get_user_account_balance.return_value = {"cash": 1000}
+    fake_client.account_information.get_user_account_positions.return_value = []
+    fake_client.options.list_option_holdings.side_effect = RuntimeError("brokerage not supported")
+
+    client_patch, user_patch = _patch_creds(fake_client)
+    with client_patch, user_patch:
+        result = json.loads(snaptrade_portfolio_summary())
+
+    entry = result["portfolio"][0]
+    assert "error" in entry["option_positions"]
+    assert entry["balances"] == {"cash": 1000}

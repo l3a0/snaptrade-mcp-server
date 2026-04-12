@@ -1,7 +1,7 @@
 """
 SnapTrade MCP Server — read-only brokerage data for AI agents.
 
-Exposes 10 tools, 2 resources, and 2 prompt templates via the Model Context
+Exposes 13 tools, 2 resources, and 3 prompt templates via the Model Context
 Protocol. Supports two transport modes: STDIO (default, for local clients like
 Claude Code and Cursor) and streamable-http (for remote clients like ChatGPT,
 with OAuth 2.0 authentication). Works with any MCP-compatible client.
@@ -61,15 +61,16 @@ import json
 import os
 import webbrowser
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import AnyHttpUrl
 
+from snaptrade_client.client import SnapTrade  # pyright: ignore[reportMissingTypeStubs]
+
 from snaptrade_mcp.oauth_provider import SimpleOAuthProvider
-from snaptrade_mcp.snaptrade_client import SnapTrade
 
 # ---------------------------------------------------------------------------
 # Server setup
@@ -123,7 +124,7 @@ mcp = FastMCP(
 CONFIG_PATH = Path.home() / ".snaptrade" / "config.json"
 
 
-def _get_client() -> tuple[SnapTrade, str]:
+def _get_client() -> tuple[Any, str]:
     """Initialize SnapTrade client from environment variables."""
     # Note: Do not pass these as inline command-line assignments (e.g.
     # SNAPTRADE_CLIENT_ID=abc python server.py) — command-line args are visible
@@ -273,6 +274,127 @@ def snaptrade_get_positions(account_id: str) -> str:
 
 
 @mcp.tool()
+def snaptrade_get_option_positions(account_id: str) -> str:
+    """Get option contract holdings (calls and puts) for a specific account.
+
+    Args:
+        account_id: The account ID (get this from snaptrade_list_accounts).
+
+    Returns option positions with OCC-format ticker (the standardized 21-character
+    option symbol defined by the Options Clearing Corporation, e.g.
+    "AAPL  240119C00150000"), strike, expiration, call/put type,
+    units (positive = long, negative = short), price per share, and average cost.
+    Does NOT include Greeks or implied volatility — use
+    snaptrade_get_option_strategy_quote for delta/gamma/theta/vega/rho and IV.
+
+    Note: the underlying data is cached by SnapTrade and may lag real-time.
+    """
+    client, _ = _get_client()
+    user_id, user_secret = _get_user()
+
+    response = client.options.list_option_holdings(
+        user_id=user_id, user_secret=user_secret, account_id=account_id,
+    )
+    return _format_response({"account_id": account_id, "option_positions": _serialize(response)})
+
+
+@mcp.tool()
+def snaptrade_get_options_chain(account_id: str, symbol: str) -> str:
+    """Get the option chain (available strikes and expirations) for an underlying symbol.
+
+    Args:
+        account_id: The account ID (get this from snaptrade_list_accounts).
+        symbol: The SnapTrade universal symbol ID (UUID) for the underlying.
+                Obtain it by calling snaptrade_search_symbols first.
+
+    Returns the structural chain: expirations, each with strike prices and the
+    corresponding call/put symbol IDs. Does NOT include pricing or Greeks —
+    pass a contract's symbol ID to snaptrade_get_option_strategy_quote to get
+    bid/ask and Greeks.
+
+    Note: response can be very large (all expirations × all strikes). Consider
+    narrowing your analysis to a specific expiration window.
+    """
+    client, _ = _get_client()
+    user_id, user_secret = _get_user()
+
+    response = client.options.get_options_chain(
+        user_id=user_id, user_secret=user_secret, account_id=account_id, symbol=symbol,
+    )
+    return _format_response({"account_id": account_id, "symbol": symbol, "chain": _serialize(response)})
+
+
+@mcp.tool()
+def snaptrade_get_option_strategy_quote(
+    account_id: str,
+    legs: list[dict[str, Any]],
+    strategy_type: str = "CUSTOM",
+    underlying_symbol_id: str | None = None,
+) -> str:
+    """Get a live quote with Greeks for an option strategy (single or multi-leg).
+
+    This is the only way to surface delta, gamma, theta, vega, rho, bid/ask, and
+    implied volatility through SnapTrade. It is READ-ONLY: creating a strategy
+    object does NOT place an order. Nothing is traded.
+
+    Args:
+        account_id: The account ID (get this from snaptrade_list_accounts).
+        legs: List of leg dicts, each with:
+              - "action": "BUY" or "SELL"
+              - "option_symbol_id": contract UUID (from snaptrade_get_options_chain)
+              - "quantity": number of contracts (int)
+              Pass a single leg for per-contract Greeks, or multiple legs for net
+              spread Greeks (verticals, condors, etc.).
+        strategy_type: Strategy label, e.g. "SINGLE", "CUSTOM", "VERTICAL". Defaults
+                       to "CUSTOM" which accepts arbitrary leg combinations.
+        underlying_symbol_id: Universal symbol ID for the underlying (from
+                              snaptrade_search_symbols). Required by some brokerages.
+
+    Returns a JSON object with the created strategy and a quote containing
+    bid_price, ask_price, open_price, volatility (IV), and net greek values.
+
+    Some brokerages do not expose this endpoint; in that case the SDK will raise
+    and the error message will be surfaced verbatim.
+    """
+    client, _ = _get_client()
+    user_id, user_secret = _get_user()
+
+    strat_response = client.options.get_option_strategy(
+        account_id=account_id,
+        user_id=user_id,
+        user_secret=user_secret,
+        underlying_symbol_id=underlying_symbol_id,
+        legs=legs,
+        strategy_type=strategy_type,
+    )
+    strategy = _serialize(strat_response)
+
+    option_strategy_id: Any = None
+    if isinstance(strategy, dict):
+        strategy_dict = cast(dict[str, Any], strategy)
+        option_strategy_id = strategy_dict.get("id") or strategy_dict.get("option_strategy_id")
+
+    if not option_strategy_id:
+        return _format_response({
+            "account_id": account_id,
+            "strategy": strategy,
+            "error": "Could not obtain an option_strategy_id from the strategy response.",
+        })
+
+    quote_response = client.options.get_options_strategy_quote(
+        account_id=account_id,
+        option_strategy_id=option_strategy_id,
+        user_id=user_id,
+        user_secret=user_secret,
+    )
+    return _format_response({
+        "account_id": account_id,
+        "strategy": strategy,
+        "quote": _serialize(quote_response),
+    })
+
+
+@mcp.tool()
 def snaptrade_get_orders(account_id: str, status: str = "all") -> str:
     """Get order history for a specific account.
 
@@ -361,6 +483,14 @@ def snaptrade_portfolio_summary() -> str:
             entry["positions"] = _serialize(pos)
         except Exception as e:
             entry["positions"] = {"error": _clean_error(e)}
+
+        try:
+            opts = client.options.list_option_holdings(
+                user_id=user_id, user_secret=user_secret, account_id=acct_id,
+            )
+            entry["option_positions"] = _serialize(opts)
+        except Exception as e:
+            entry["option_positions"] = {"error": _clean_error(e)}
 
         portfolio.append(entry)
 
@@ -595,6 +725,25 @@ def analyze_portfolio() -> str:
         "4. **Diversification score** — how well-diversified am I?\n"
         "5. **Observations** — anything notable about my holdings?\n\n"
         "Present the data in clean tables. Be specific with numbers."
+    )
+
+
+@mcp.prompt()
+def analyze_options() -> str:
+    """Analyze the user's options positions for risk, exposure, and upcoming expirations."""
+    return (
+        "Please analyze my options positions. Use snaptrade_portfolio_summary to "
+        "find accounts with option holdings, then for each account call "
+        "snaptrade_get_option_positions. Provide:\n\n"
+        "1. **Open positions** — contract, strike, expiry, quantity, side (long/short)\n"
+        "2. **Expiration timeline** — which contracts expire this week / month\n"
+        "3. **Directional exposure** — net bullish/bearish bias from the book\n"
+        "4. **Notable risks** — short premium with earnings coming up, assignment risk, etc.\n"
+        "5. **Observations** — anything unusual or worth flagging\n\n"
+        "For positions where risk analysis matters, call "
+        "snaptrade_get_option_strategy_quote with a single leg (the option_symbol_id "
+        "from the holding) to get current delta/theta/IV.\n\n"
+        "Be specific with numbers. Do not suggest trades — this is read-only analysis."
     )
 
 
